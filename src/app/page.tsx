@@ -11,14 +11,14 @@ import {
   LMSAssignment,
 } from "@/types";
 import { roles } from "@/data/roles";
-import { retrieveRequirements, getCompetencyNeeds } from "@/lib/retrieval";
-import { generateTrainingPlan } from "@/lib/trainingGenerator";
-import { calculateValidationScore } from "@/lib/validation";
+import { retrieveRequirementsRuleBased as retrieveRequirements, getCompetencyNeeds } from "@/llm/retrieval";
+import { generateTrainingPlanRuleBased as generateTrainingPlan } from "@/llm/generation";
+import { calculateValidationScoreRuleBased as calculateValidationScore } from "@/llm/validation";
 import type {
   RiskAnalysisResult,
   LLMValidationAnalysis,
   ReviewAssessment,
-} from "@/lib/llm";
+} from "@/llm";
 import RoleSelector from "@/components/RoleSelector";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
 import TrainingPlanComponent from "@/components/TrainingPlan";

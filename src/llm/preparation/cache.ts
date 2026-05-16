@@ -13,7 +13,8 @@ class LLMCache {
   private cache = new Map<string, CacheEntry<any>>();
   private defaultTTL: number;
 
-  constructor(defaultTTL: number = 5 * 60 * 1000) { // 5 minutes default
+  constructor(defaultTTL: number = 5 * 60 * 1000) {
+    // 5 minutes default
     this.defaultTTL = defaultTTL;
   }
 
@@ -30,7 +31,7 @@ class LLMCache {
    */
   get<T>(key: string): T | null {
     const entry = this.cache.get(key);
-    
+
     if (!entry) {
       return null;
     }
@@ -117,13 +118,13 @@ let cacheInstance: LLMCache | null = null;
 export function getLLMCache(): LLMCache {
   if (!cacheInstance) {
     cacheInstance = new LLMCache();
-    
+
     // Run cleanup every minute
     setInterval(() => {
       cacheInstance?.cleanup();
     }, 60 * 1000);
   }
-  
+
   return cacheInstance;
 }
 

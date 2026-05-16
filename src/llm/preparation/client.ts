@@ -1,6 +1,6 @@
 /**
  * OpenRouter API Client for LLM Integration
- * Provides a clean interface for communicating with Google Gemini models via OpenRouter
+ * Provides a clean interface for communicating with LLM models via OpenRouter
  */
 
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
@@ -86,14 +86,14 @@ class OpenRouterClient {
    */
   async generateResponse(prompt: string, systemPrompt?: string): Promise<string> {
     const messages: LLMMessage[] = [];
-    
+
     if (systemPrompt) {
       messages.push({
         role: 'system',
         content: systemPrompt,
       });
     }
-    
+
     messages.push({
       role: 'user',
       content: prompt,

@@ -3,14 +3,11 @@
  * Enhances the rule-based plan generation with AI-powered optimization
  */
 
-import { Role, AMLRRequirement, TrainingModule, TrainingPlan, TrainingPlanItem } from '@/types';
-import { getLLMClient, LLMMessage } from './client';
-import { 
-  TRAINING_PLAN_SYSTEM_PROMPT, 
-  createTrainingPlanPrompt 
-} from './prompts';
+import { Role, AMLRRequirement, TrainingPlan, TrainingPlanItem } from '@/types';
+import { getLLMClient, type LLMMessage } from '../preparation/client';
+import { TRAINING_PLAN_SYSTEM_PROMPT, createTrainingPlanPrompt } from './prompts';
 import { trainingModules } from '@/data/amirRequirements';
-import { parseJSONFromLLM } from './parseJson';
+import { parseJSONFromLLM } from '../preparation/parseJson';
 
 export interface LLMSelectedModule {
   moduleId: string;
@@ -46,7 +43,7 @@ export async function generateTrainingPlanWithLLM(
 ): Promise<EnhancedTrainingPlan> {
   try {
     const client = getLLMClient();
-    
+
     const systemMessage: LLMMessage = {
       role: 'system',
       content: TRAINING_PLAN_SYSTEM_PROMPT,
@@ -71,13 +68,11 @@ export async function generateTrainingPlanWithLLM(
 
     // Convert LLM-selected modules to TrainingPlan format
     const items: TrainingPlanItem[] = [];
-    
+
     llmPlan.selectedModules.forEach((selectedModule) => {
       const module = trainingModules.find((m) => m.id === selectedModule.moduleId);
       if (module) {
-        const requirement = requirements.find((req) =>
-          req.trainingModuleIds.includes(module.id)
-        );
+        const requirement = requirements.find((req) => req.trainingModuleIds.includes(module.id));
 
         if (requirement) {
           items.push({
@@ -93,7 +88,7 @@ export async function generateTrainingPlanWithLLM(
     // If LLM didn't select enough modules, supplement with rule-based selection
     if (items.length < requirements.length) {
       const existingModuleIds = new Set(items.map((item) => item.module.id));
-      
+
       requirements.forEach((req) => {
         req.trainingModuleIds.forEach((moduleId) => {
           if (!existingModuleIds.has(moduleId)) {
@@ -138,11 +133,11 @@ export async function generateTrainingPlanWithLLM(
     };
   } catch (error) {
     console.error('LLM training plan generation failed, using fallback:', error);
-    
-    // Use the original rule-based generation
-    const { generateTrainingPlan } = await import('../trainingGenerator');
-    const fallbackPlan = generateTrainingPlan(role, requirements);
-    
+
+    // Use the rule-based generation
+    const { generateTrainingPlanRuleBased } = await import('./ruleBased');
+    const fallbackPlan = generateTrainingPlanRuleBased(role, requirements);
+
     return {
       plan: fallbackPlan,
       llmAnalysis: {
@@ -173,7 +168,7 @@ export async function enhanceTrainingPlanWithLLM(
 }> {
   try {
     const client = getLLMClient();
-    
+
     // Create a prompt to enhance the existing plan
     const prompt = `Review and enhance the following AML compliance training plan:
 
@@ -230,9 +225,7 @@ Format your response as JSON:
     enhancement.additionalModules.forEach((additional) => {
       const module = trainingModules.find((m) => m.id === additional.moduleId);
       if (module && !enhancedItems.find((i) => i.module.id === additional.moduleId)) {
-        const requirement = requirements.find((req) =>
-          req.trainingModuleIds.includes(module.id)
-        );
+        const requirement = requirements.find((req) => req.trainingModuleIds.includes(module.id));
         if (requirement) {
           enhancedItems.push({
             module,
@@ -271,39 +264,4 @@ Format your response as JSON:
       learningObjectives: [],
     };
   }
-}
-
-/**
- * Format LLM training plan analysis for display
- */
-export function formatLLMPlanAnalysisForDisplay(analysis: LLMTrainingPlan): string {
-  if (!analysis.selectedModules.length) {
-    return 'No LLM analysis available';
-  }
-
-  let output = `**Learning Objectives:**\n`;
-  analysis.learningObjectives.forEach((obj, i) => {
-    output += `${i + 1}. ${obj}\n`;
-  });
-
-  output += `\n**Recommended Learning Sequence:**\n`;
-  analysis.selectedModules
-    .sort((a, b) => a.sequence - b.sequence)
-    .forEach((module, i) => {
-      output += `${i + 1}. Module ${module.moduleId} (Priority: ${module.priority}/10)\n`;
-      output += `   Justification: ${module.justification}\n`;
-      if (module.prerequisites.length > 0) {
-        output += `   Prerequisites: ${module.prerequisites.join(', ')}\n`;
-      }
-    });
-
-  if (analysis.criticalPath.length > 0) {
-    output += `\n**Critical Path:** ${analysis.criticalPath.join(' → ')}\n`;
-  }
-
-  if (analysis.recommendations) {
-    output += `\n**AI Recommendations:**\n${analysis.recommendations}\n`;
-  }
-
-  return output;
 }

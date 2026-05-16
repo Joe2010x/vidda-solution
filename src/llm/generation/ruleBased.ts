@@ -3,17 +3,13 @@ import {
   AMLRRequirement,
   TrainingPlan,
   TrainingPlanItem,
-  TrainingModule,
-} from "@/types";
-import { trainingModules } from "@/data/amirRequirements";
+} from '@/types';
+import { trainingModules } from '@/data/amirRequirements';
 
 /**
- * Generate a training plan based on role and retrieved requirements
+ * Generate a training plan based on role and retrieved requirements (rule-based)
  */
-export function generateTrainingPlan(
-  role: Role,
-  requirements: AMLRRequirement[]
-): TrainingPlan {
+export function generateTrainingPlanRuleBased(role: Role, requirements: AMLRRequirement[]): TrainingPlan {
   const items: TrainingPlanItem[] = [];
 
   // For each requirement, map the associated training modules
@@ -25,9 +21,9 @@ export function generateTrainingPlan(
         // 1. Module priority (high=3, medium=2, low=1)
         // 2. Role risk level (high=3, medium=2, low=1)
         const modulePriorityScore =
-          module.priority === "high" ? 3 : module.priority === "medium" ? 2 : 1;
+          module.priority === 'high' ? 3 : module.priority === 'medium' ? 2 : 1;
         const roleRiskScore =
-          role.riskLevel === "high" ? 3 : role.riskLevel === "medium" ? 2 : 1;
+          role.riskLevel === 'high' ? 3 : role.riskLevel === 'medium' ? 2 : 1;
 
         // Combined priority (1-10 scale)
         const priority = Math.min(10, Math.round((modulePriorityScore * roleRiskScore * 10) / 9));
@@ -60,10 +56,7 @@ export function generateTrainingPlan(
   uniqueItems.sort((a, b) => b.priority - a.priority);
 
   // Calculate total duration
-  const totalDuration = uniqueItems.reduce(
-    (sum, item) => sum + item.estimatedDuration,
-    0
-  );
+  const totalDuration = uniqueItems.reduce((sum, item) => sum + item.estimatedDuration, 0);
 
   return {
     roleId: role.id,
@@ -85,14 +78,9 @@ export function getTrainingPlanSummary(plan: TrainingPlan): {
   lowPriorityCount: number;
   moduleTypes: Record<string, number>;
 } {
-  const highPriorityCount = plan.items.filter(
-    (item) => item.priority >= 7
-  ).length;
-  const mediumPriorityCount = plan.items.filter(
-    (item) => item.priority >= 4 && item.priority < 7
-  ).length;
-  const lowPriorityCount = plan.items.filter((item) => item.priority < 4)
-    .length;
+  const highPriorityCount = plan.items.filter((item) => item.priority >= 7).length;
+  const mediumPriorityCount = plan.items.filter((item) => item.priority >= 4 && item.priority < 7).length;
+  const lowPriorityCount = plan.items.filter((item) => item.priority < 4).length;
 
   const moduleTypes: Record<string, number> = {};
   plan.items.forEach((item) => {

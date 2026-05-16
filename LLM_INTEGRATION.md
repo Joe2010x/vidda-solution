@@ -8,35 +8,41 @@ This document describes the LLM (Large Language Model) integration in the Vidda 
 
 ### Components
 
-1. **LLM Client** (`src/lib/llm/client.ts`)
-   - OpenRouter API client for communicating with Google Gemini
-   - Handles authentication and request formatting
-   - Provides both chat and simple generation interfaces
+This repo uses a staged execution model under `src/llm/`:
 
-2. **Prompt Templates** (`src/lib/llm/prompts.ts`)
-   - System and user prompts for different LLM tasks
-   - Structured prompts that request JSON responses
-   - Specialized prompts for risk analysis, plan generation, and validation
+Preparation → Extraction → Retrieval → Generation → Post-processing → Validation → Delivery
 
-3. **Risk Analyzer** (`src/lib/llm/riskAnalyzer.ts`)
-   - LLM-powered risk category extraction from role descriptions
-   - Semantic understanding of tasks and their AML/CFT implications
-   - Provides confidence scores and detailed reasoning
+Each stage exposes a **single public entrypoint** (`src/llm/<stage>/index.ts`) to reduce merge conflicts.
 
-4. **Plan Generator** (`src/lib/llm/planGenerator.ts`)
-   - AI-optimized training plan creation
-   - Generates learning objectives and sequences
-   - Provides justifications for module selections
+1. **Preparation** (`src/llm/preparation/*`)
+  - OpenRouter client: `src/llm/preparation/client.ts`
+  - Cache: `src/llm/preparation/cache.ts`
+  - JSON parsing/repair: `src/llm/preparation/parseJson.ts`
 
-5. **Validator** (`src/lib/llm/validator.ts`)
-   - Comprehensive plan validation with qualitative analysis
-   - Generates detailed feedback and recommendations
-   - Provides AI-assisted review assessments
+2. **Extraction** (`src/llm/extraction/*`)
+  - Risk analysis: `src/llm/extraction/riskAnalyzer.ts`
+  - Job description parsing: `src/llm/extraction/jobDescriptionParser.ts`
+  - Extraction prompts: `src/llm/extraction/prompts.ts`
 
-6. **Cache** (`src/lib/llm/cache.ts`)
-   - In-memory caching to reduce API calls
-   - Automatic cleanup of expired entries
-   - Configurable TTL (Time To Live)
+3. **Retrieval** (`src/llm/retrieval/*`)
+  - Rule-based retrieval: `src/llm/retrieval/ruleBased.ts`
+  - LLM-enhanced requirements retrieval: `src/llm/retrieval/requirementsWithLLM.ts`
+
+4. **Generation** (`src/llm/generation/*`)
+  - Rule-based plan generation: `src/llm/generation/ruleBased.ts`
+  - LLM plan generation: `src/llm/generation/planGenerator.ts`
+  - Generation prompts: `src/llm/generation/prompts.ts`
+
+5. **Post-processing** (`src/llm/post-processing/*`)
+  - Display formatters: `src/llm/post-processing/formatters.ts`
+
+6. **Validation** (`src/llm/validation/*`)
+  - Rule-based validation scoring: `src/llm/validation/ruleBased.ts`
+  - LLM validation + review assessment: `src/llm/validation/validator.ts`
+  - Validation prompts: `src/llm/validation/prompts.ts`
+
+7. **Delivery** (`src/llm/delivery/*`)
+  - Server-side handlers consumed by Next.js API routes
 
 ### API Routes
 
@@ -44,6 +50,8 @@ This document describes the LLM (Large Language Model) integration in the Vidda 
 - `/api/llm/generate-plan` - Generate training plan with LLM
 - `/api/llm/validate-plan` - Validate training plan with LLM
 - `/api/llm/parse-job-description` - Parse raw job description text into structured role data
+
+Note: route files remain under `src/app/api/**` (Next.js constraint), but the logic lives in `src/llm/delivery/*`.
 
 ## Setup
 
@@ -125,7 +133,7 @@ import {
   analyzeRisksWithLLM,
   generateTrainingPlanWithLLM,
   comprehensiveValidation,
-} from '@/lib/llm';
+} from '@/llm';
 
 // Analyze risks
 const riskResult = await analyzeRisksWithLLM(role);
