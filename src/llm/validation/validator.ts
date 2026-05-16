@@ -4,14 +4,14 @@
  */
 
 import { Role, AMLRRequirement, TrainingPlan, ValidationScore } from '@/types';
-import { getLLMClient, LLMMessage } from './client';
-import { 
+import { getLLMClient, type LLMMessage } from '../preparation/client';
+import {
   VALIDATION_SYSTEM_PROMPT,
   REVIEW_ASSISTANT_SYSTEM_PROMPT,
   createValidationPrompt,
-  createReviewCommentPrompt
+  createReviewCommentPrompt,
 } from './prompts';
-import { parseJSONFromLLM } from './parseJson';
+import { parseJSONFromLLM } from '../preparation/parseJson';
 
 export interface LLMValidationAnalysis {
   scores: {
@@ -46,31 +46,6 @@ export interface ReviewAssessment {
 }
 
 /**
- * Convert LLM grade to numeric score range
- */
-function gradeToScoreRange(grade: string): { min: number; max: number } {
-  switch (grade) {
-    case 'A': return { min: 90, max: 100 };
-    case 'B': return { min: 80, max: 89 };
-    case 'C': return { min: 70, max: 79 };
-    case 'D': return { min: 60, max: 69 };
-    case 'F': return { min: 0, max: 59 };
-    default: return { min: 70, max: 79 };
-  }
-}
-
-/**
- * Convert LLM status to standard status
- */
-function normalizeStatus(status: string): 'excellent' | 'good' | 'adequate' | 'needs_improvement' | 'poor' {
-  const validStatuses = ['excellent', 'good', 'adequate', 'needs_improvement', 'poor'] as const;
-  if (validStatuses.includes(status as typeof validStatuses[number])) {
-    return status as typeof validStatuses[number];
-  }
-  return 'adequate';
-}
-
-/**
  * Validate a training plan using LLM analysis
  * Provides qualitative insights in addition to quantitative scores
  */
@@ -82,7 +57,7 @@ export async function validateWithLLM(
 ): Promise<EnhancedValidationResult> {
   try {
     const client = getLLMClient();
-    
+
     const systemMessage: LLMMessage = {
       role: 'system',
       content: VALIDATION_SYSTEM_PROMPT,
@@ -125,11 +100,11 @@ export async function validateWithLLM(
     };
   } catch (error) {
     console.error('LLM validation failed, using fallback:', error);
-    
-    // Use the original rule-based validation
-    const { calculateValidationScore } = await import('../validation');
-    const fallbackScore = calculateValidationScore(role, requirements, trainingPlan, riskCategories);
-    
+
+    // Use the rule-based validation
+    const { calculateValidationScoreRuleBased } = await import('./ruleBased');
+    const fallbackScore = calculateValidationScoreRuleBased(role, requirements, trainingPlan, riskCategories);
+
     return {
       validationScore: fallbackScore,
       llmAnalysis: {
@@ -145,8 +120,26 @@ export async function validateWithLLM(
           gaps: [],
         },
         recommendations: ['Using rule-based validation'],
-        grade: fallbackScore.overallScore >= 90 ? 'A' : fallbackScore.overallScore >= 80 ? 'B' : fallbackScore.overallScore >= 70 ? 'C' : fallbackScore.overallScore >= 60 ? 'D' : 'F',
-        status: fallbackScore.overallScore >= 90 ? 'excellent' : fallbackScore.overallScore >= 80 ? 'good' : fallbackScore.overallScore >= 70 ? 'adequate' : fallbackScore.overallScore >= 60 ? 'needs_improvement' : 'poor',
+        grade:
+          fallbackScore.overallScore >= 90
+            ? 'A'
+            : fallbackScore.overallScore >= 80
+              ? 'B'
+              : fallbackScore.overallScore >= 70
+                ? 'C'
+                : fallbackScore.overallScore >= 60
+                  ? 'D'
+                  : 'F',
+        status:
+          fallbackScore.overallScore >= 90
+            ? 'excellent'
+            : fallbackScore.overallScore >= 80
+              ? 'good'
+              : fallbackScore.overallScore >= 70
+                ? 'adequate'
+                : fallbackScore.overallScore >= 60
+                  ? 'needs_improvement'
+                  : 'poor',
       },
       fallbackUsed: true,
     };
@@ -164,7 +157,7 @@ export async function generateReviewAssessment(
 ): Promise<ReviewAssessment> {
   try {
     const client = getLLMClient();
-    
+
     const systemMessage: LLMMessage = {
       role: 'system',
       content: REVIEW_ASSISTANT_SYSTEM_PROMPT,
@@ -191,7 +184,7 @@ export async function generateReviewAssessment(
     return assessment;
   } catch (error) {
     console.error('LLM review assessment failed:', error);
-    
+
     // Return a basic assessment
     return {
       summary: `Training plan for ${role.name} has been evaluated with an overall score of ${validationScores.overallScore}/100.`,
@@ -220,11 +213,11 @@ export async function comprehensiveValidation(
 }> {
   try {
     // Get both rule-based and LLM validation
-    const { calculateValidationScore } = await import('../validation');
-    const ruleBasedScore = calculateValidationScore(role, requirements, trainingPlan, riskCategories);
-    
+    const { calculateValidationScoreRuleBased } = await import('./ruleBased');
+    const ruleBasedScore = calculateValidationScoreRuleBased(role, requirements, trainingPlan, riskCategories);
+
     const llmResult = await validateWithLLM(role, requirements, trainingPlan, riskCategories);
-    
+
     // Combine scores (weighted average: 60% LLM, 40% rule-based for more nuanced assessment)
     const combinedScore: ValidationScore = {
       overallScore: Math.round(llmResult.validationScore.overallScore * 0.6 + ruleBasedScore.overallScore * 0.4),
@@ -249,11 +242,11 @@ export async function comprehensiveValidation(
     };
   } catch (error) {
     console.error('Comprehensive validation failed:', error);
-    
+
     // Fall back to rule-based only
-    const { calculateValidationScore } = await import('../validation');
-    const fallbackScore = calculateValidationScore(role, requirements, trainingPlan, riskCategories);
-    
+    const { calculateValidationScoreRuleBased } = await import('./ruleBased');
+    const fallbackScore = calculateValidationScoreRuleBased(role, requirements, trainingPlan, riskCategories);
+
     return {
       combinedScore: fallbackScore,
       llmAnalysis: {
@@ -269,8 +262,26 @@ export async function comprehensiveValidation(
           gaps: [],
         },
         recommendations: ['Consider manual review for comprehensive assessment'],
-        grade: fallbackScore.overallScore >= 90 ? 'A' : fallbackScore.overallScore >= 80 ? 'B' : fallbackScore.overallScore >= 70 ? 'C' : fallbackScore.overallScore >= 60 ? 'D' : 'F',
-        status: fallbackScore.overallScore >= 90 ? 'excellent' : fallbackScore.overallScore >= 80 ? 'good' : fallbackScore.overallScore >= 70 ? 'adequate' : fallbackScore.overallScore >= 60 ? 'needs_improvement' : 'poor',
+        grade:
+          fallbackScore.overallScore >= 90
+            ? 'A'
+            : fallbackScore.overallScore >= 80
+              ? 'B'
+              : fallbackScore.overallScore >= 70
+                ? 'C'
+                : fallbackScore.overallScore >= 60
+                  ? 'D'
+                  : 'F',
+        status:
+          fallbackScore.overallScore >= 90
+            ? 'excellent'
+            : fallbackScore.overallScore >= 80
+              ? 'good'
+              : fallbackScore.overallScore >= 70
+                ? 'adequate'
+                : fallbackScore.overallScore >= 60
+                  ? 'needs_improvement'
+                  : 'poor',
       },
       reviewAssessment: {
         summary: `Training plan evaluated with score ${fallbackScore.overallScore}/100`,
@@ -283,85 +294,4 @@ export async function comprehensiveValidation(
       fallbackUsed: true,
     };
   }
-}
-
-/**
- * Format LLM validation analysis for display
- */
-export function formatLLMValidationForDisplay(analysis: LLMValidationAnalysis): string {
-  let output = `**Grade: ${analysis.grade}** (${analysis.status.toUpperCase()})\n\n`;
-  
-  output += `**Scores:**\n`;
-  output += `- Coverage: ${analysis.scores.coverage}/100\n`;
-  output += `- Relevance: ${analysis.scores.relevance}/100\n`;
-  output += `- Completeness: ${analysis.scores.completeness}/100\n`;
-  output += `- Overall: ${analysis.scores.overall}/100\n\n`;
-
-  if (analysis.analysis.strengths.length > 0) {
-    output += `**Strengths:**\n`;
-    analysis.analysis.strengths.forEach((strength, i) => {
-      output += `${i + 1}. ${strength}\n`;
-    });
-    output += '\n';
-  }
-
-  if (analysis.analysis.weaknesses.length > 0) {
-    output += `**Areas for Improvement:**\n`;
-    analysis.analysis.weaknesses.forEach((weakness, i) => {
-      output += `${i + 1}. ${weakness}\n`;
-    });
-    output += '\n';
-  }
-
-  if (analysis.analysis.gaps.length > 0) {
-    output += `**Identified Gaps:**\n`;
-    analysis.analysis.gaps.forEach((gap, i) => {
-      output += `${i + 1}. ${gap}\n`;
-    });
-    output += '\n';
-  }
-
-  if (analysis.recommendations.length > 0) {
-    output += `**Recommendations:**\n`;
-    analysis.recommendations.forEach((rec, i) => {
-      output += `${i + 1}. ${rec}\n`;
-    });
-  }
-
-  return output;
-}
-
-/**
- * Format review assessment for display
- */
-export function formatReviewAssessmentForDisplay(assessment: ReviewAssessment): string {
-  let output = `**Summary:** ${assessment.summary}\n\n`;
-  
-  output += `**Recommended Decision:** ${assessment.decision.toUpperCase()}\n`;
-  output += `**Justification:** ${assessment.justification}\n\n`;
-
-  if (assessment.strengths.length > 0) {
-    output += `**Strengths:**\n`;
-    assessment.strengths.forEach((strength, i) => {
-      output += `${i + 1}. ${strength}\n`;
-    });
-    output += '\n';
-  }
-
-  if (assessment.improvements.length > 0) {
-    output += `**Areas for Improvement:**\n`;
-    assessment.improvements.forEach((improvement, i) => {
-      output += `${i + 1}. ${improvement}\n`;
-    });
-    output += '\n';
-  }
-
-  if (assessment.recommendations.length > 0) {
-    output += `**Specific Recommendations:**\n`;
-    assessment.recommendations.forEach((rec, i) => {
-      output += `${i + 1}. ${rec}\n`;
-    });
-  }
-
-  return output;
 }
