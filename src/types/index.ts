@@ -16,7 +16,6 @@ export interface AMLRRequirement {
   riskCategories: string[];
   competencyRequirements: string[];
   trainingModuleIds: string[];
-  regulatoryReference: string;
 }
 
 // Training module types

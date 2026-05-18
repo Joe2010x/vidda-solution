@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/ensure_corpus.js",
+    "prestart": "node scripts/ensure_corpus.js",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:corpus": "node scripts/build_corpus.js"
   },
   "dependencies": {
     "jsonrepair": "^3.14.0",

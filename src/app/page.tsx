@@ -19,6 +19,7 @@ import type {
   LLMValidationAnalysis,
   ReviewAssessment,
 } from "@/llm";
+import type { EnrichmentResult } from "@/types/rag";
 import RoleSelector from "@/components/RoleSelector";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
 import TrainingPlanComponent from "@/components/TrainingPlan";
@@ -41,6 +42,10 @@ export default function Home() {
   );
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
   const [lmsAssignments, setLmsAssignments] = useState<LMSAssignment[]>([]);
+
+  // RAG enrichment state
+  const [enrichmentByRisk, setEnrichmentByRisk] = useState<Record<string, EnrichmentResult>>({});
+  const [enrichmentError, setEnrichmentError] = useState<string | null>(null);
 
   // LLM-enhanced state
   const [useLLM, setUseLLM] = useState(true);
@@ -74,6 +79,8 @@ export default function Home() {
       setLlmReviewAssessment(null);
       setLlmError(null);
       setLlmStatus(null);
+      setEnrichmentByRisk({});
+      setEnrichmentError(null);
       setCurrentStep(0);
       return;
     }
@@ -101,6 +108,43 @@ export default function Home() {
         setRetrievedRequirements(riskData.requirements);
         setRiskAnalysis(riskData.analysis);
         setCurrentStep(2);
+
+        // Step 2b: Enrich each risk category with regulatory citations (RAG)
+        setLlmStatus('Retrieving regulatory citations...');
+        const enrichResults = await Promise.allSettled(
+          (riskData.mappedRisks as string[]).map((category: string) =>
+            fetch('/api/llm/enrich-risk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ riskCategory: category }),
+            }).then(r => r.json())
+          )
+        );
+        const enrichMap: Record<string, EnrichmentResult> = {};
+        const enrichErrors: string[] = [];
+        enrichResults.forEach((result, i) => {
+          const category = riskData.mappedRisks[i];
+          if (result.status === 'fulfilled' && result.value.success) {
+            enrichMap[category] = { reasoning: result.value.reasoning, citations: result.value.citations, contexts: result.value.contexts ?? [] };
+          } else {
+            const msg = result.status === 'rejected' ? result.reason?.message : result.value.message;
+            enrichErrors.push(`${category}: ${msg}`);
+          }
+        });
+        setEnrichmentByRisk(enrichMap);
+        if (enrichErrors.length > 0) {
+          setEnrichmentError(
+            `Regulatory enrichment failed for ${enrichErrors.length} risk categor${enrichErrors.length === 1 ? 'y' : 'ies'}: ${enrichErrors.join('; ')}`
+          );
+          setTrainingPlan(null);
+          setValidationScore(null);
+          setReviewStatus(null);
+          setLlmStatus(null);
+          setIsLLMProcessing(false);
+          return;
+        } else {
+          setEnrichmentError(null);
+        }
 
         // Step 3: Get competency needs
         setLlmStatus('Mapping competency requirements...');
@@ -478,6 +522,8 @@ export default function Home() {
               trainingPlan={trainingPlan}
               mappedRisks={mappedRisks}
               competencyNeeds={competencyNeeds}
+              enrichmentByRisk={enrichmentByRisk}
+              enrichmentError={enrichmentError}
             />
 
             {/* Validation Score */}

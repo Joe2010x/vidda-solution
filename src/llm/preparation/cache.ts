@@ -134,6 +134,7 @@ export const CACHE_KEYS = {
   TRAINING_PLAN: 'llm:training-plan',
   VALIDATION: 'llm:validation',
   REVIEW: 'llm:review',
+  RAG_EMBEDDING: 'rag:embedding',
 };
 
 // Export for testing

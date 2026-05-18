@@ -14,7 +14,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "Risk-based approach application",
     ],
     trainingModuleIds: ["mod-001", "mod-002", "mod-003"],
-    regulatoryReference: "AMLR Art. 14-18",
   },
   {
     id: "amir-002",
@@ -29,7 +28,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "Enhanced monitoring techniques",
     ],
     trainingModuleIds: ["mod-004", "mod-005"],
-    regulatoryReference: "AMLR Art. 19-22",
   },
   {
     id: "amir-003",
@@ -44,7 +42,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "Tipping-off prevention",
     ],
     trainingModuleIds: ["mod-006", "mod-007"],
-    regulatoryReference: "AMLR Art. 55-60",
   },
   {
     id: "amir-004",
@@ -59,7 +56,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "License application process",
     ],
     trainingModuleIds: ["mod-008", "mod-009"],
-    regulatoryReference: "AMLR Art. 23-25",
   },
   {
     id: "amir-005",
@@ -74,7 +70,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "Audit preparation",
     ],
     trainingModuleIds: ["mod-010"],
-    regulatoryReference: "AMLR Art. 40-42",
   },
   {
     id: "amir-006",
@@ -89,7 +84,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "Risk reporting",
     ],
     trainingModuleIds: ["mod-011", "mod-012"],
-    regulatoryReference: "AMLR Art. 7-13",
   },
   {
     id: "amir-007",
@@ -104,7 +98,6 @@ export const amirRequirements: AMLRRequirement[] = [
       "Compliance monitoring",
     ],
     trainingModuleIds: ["mod-013", "mod-014"],
-    regulatoryReference: "AMLR Art. 46-48",
   },
 ];
 
