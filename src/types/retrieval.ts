@@ -143,10 +143,10 @@ export interface NormalizedCompetency {
   /** Unique identifier: e.g., "comp-task-2-sar-001" */
   competencyId: string;
   
-  /** Source task ID */
+  /** Source task ID - must match the original extraction */
   taskId: string;
   
-  /** Source task description */
+  /** Source task description - preserved from original extraction */
   taskDescription: string;
   
   /** Competency category */
@@ -155,8 +155,11 @@ export interface NormalizedCompetency {
   /** The competency text/description */
   text: string;
   
-  /** Linked business requirement title */
-  linkedRequirement: string;
+  /** Primary linked business requirement title */
+  primaryRequirement: string;
+  
+  /** Supporting/secondary requirement titles */
+  supportingRequirements: string[];
   
   /** Linked regulatory articles */
   linkedRegulatoryBasis: string[];

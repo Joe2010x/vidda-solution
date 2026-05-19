@@ -247,13 +247,18 @@ export default function CompetencyReview({
                         <span className="font-medium">Task:</span> {comp.taskId}
                       </div>
                       <div>
-                        <span className="font-medium">Requirement:</span> {comp.linkedRequirement}
+                        <span className="font-medium">Primary Req:</span> {comp.primaryRequirement}
+                      </div>
+                      {comp.supportingRequirements.length > 0 && (
+                        <div className="col-span-2">
+                          <span className="font-medium">Supporting:</span> {comp.supportingRequirements.join(', ')}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-medium">Regulatory:</span> {comp.linkedRegulatoryBasis.join(', ')}
                       </div>
                       <div>
-                        <span className="font-medium">Regulatory Basis:</span> {comp.linkedRegulatoryBasis.join(', ')}
-                      </div>
-                      <div>
-                        <span className="font-medium">Risk Level:</span> {comp.riskLevel.toUpperCase()}
+                        <span className="font-medium">Risk:</span> {comp.riskLevel.toUpperCase()}
                       </div>
                     </div>
                   </div>

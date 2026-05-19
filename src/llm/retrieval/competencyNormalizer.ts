@@ -5,10 +5,10 @@
  * normalized, enriched competency objects with full traceability.
  * 
  * Does 4 things:
- * 1. Binds each competency to its source taskId
+ * 1. Binds each competency to its source taskId (preserved from original extraction)
  * 2. Enriches with skills and judgement based on risk category
- * 3. Inherits requirement confidence and humanReviewRequired flags
- * 4. Assigns priority based on risk level and task type
+ * 3. Inherits requirement confidence and humanReviewRequired flags (layered approach)
+ * 4. Assigns priority based on risk level, task type, and competency category
  */
 
 import type { 
@@ -19,7 +19,7 @@ import type {
 } from '@/types/retrieval';
 
 /**
- * High-risk task keywords that trigger critical priority
+ * High-risk task keywords that indicate critical decision-making
  */
 const HIGH_RISK_TASK_KEYWORDS = [
   'sar', 'suspicious activity report', 'suspicious',
@@ -28,6 +28,16 @@ const HIGH_RISK_TASK_KEYWORDS = [
   'sanctions', 'asset freezing',
   'escalat', 'escalation',
   'mlro', 'money laundering reporting',
+  'transaction monitoring', 'monitoring',
+];
+
+/**
+ * Governance/training task keywords for medium priority
+ */
+const GOVERNANCE_TASK_KEYWORDS = [
+  'policies', 'policy', 'governance',
+  'training', 'mentorship', 'mentoring', 'coach',
+  'documentation', 'record', 'admin',
 ];
 
 /**
@@ -46,6 +56,18 @@ const TASK_TYPE_KEYWORDS: Record<string, { skills: string[]; judgement: string[]
     ],
   },
   'sar': {
+    skills: [
+      'Write clear SAR rationale',
+      'Prepare audit-ready case records',
+      'Summarise suspicious indicators accurately',
+    ],
+    judgement: [
+      'Decide when suspicious indicators meet reporting threshold',
+      'Know when to escalate to Compliance Manager or MLRO',
+      'Avoid tipping-off risk during investigation handling',
+    ],
+  },
+  'suspicious': {
     skills: [
       'Write clear SAR rationale',
       'Prepare audit-ready case records',
@@ -79,7 +101,29 @@ const TASK_TYPE_KEYWORDS: Record<string, { skills: string[]; judgement: string[]
       'Recognise when policy gaps require escalation',
     ],
   },
+  'policy': {
+    skills: [
+      'Translate AML policy into operational procedures',
+      'Identify gaps in control design',
+      'Collaborate with compliance officers on procedure updates',
+    ],
+    judgement: [
+      'Assess whether controls are proportionate to actual risk exposure',
+      'Recognise when policy gaps require escalation',
+    ],
+  },
   'training': {
+    skills: [
+      'Coach junior analysts on red flag detection',
+      'Review junior analyst case decisions',
+      'Give actionable feedback on documentation quality',
+    ],
+    judgement: [
+      'Identify when junior analyst decisions create systemic risk',
+      'Distinguish individual training gaps from control failures',
+    ],
+  },
+  'mentorship': {
     skills: [
       'Coach junior analysts on red flag detection',
       'Review junior analyst case decisions',
@@ -93,30 +137,54 @@ const TASK_TYPE_KEYWORDS: Record<string, { skills: string[]; judgement: string[]
 };
 
 /**
- * Determine priority based on risk level and task type
+ * Determine priority based on risk level, task type, and competency category
+ * 
+ * Rules:
+ * - Critical: judgement + high-risk task (decision-making)
+ * - High: skills/knowledge + high-risk task, or judgement + medium-risk
+ * - Medium: governance, policy, training competencies
+ * - Low: general awareness or non-core support
  */
 function determinePriority(
   riskLevel: 'low' | 'medium' | 'high',
-  taskDescription: string
+  taskDescription: string,
+  category: 'knowledge' | 'skills' | 'judgement'
 ): PriorityLevel {
   const taskLower = taskDescription.toLowerCase();
+  const isHighRiskTask = HIGH_RISK_TASK_KEYWORDS.some(kw => taskLower.includes(kw));
+  const isGovernanceTask = GOVERNANCE_TASK_KEYWORDS.some(kw => taskLower.includes(kw));
   
-  // High risk + high-risk task keywords = critical
-  if (riskLevel === 'high' && HIGH_RISK_TASK_KEYWORDS.some(kw => taskLower.includes(kw))) {
+  // Critical: judgement + high-risk task (decision-making for SAR/EDD/monitoring)
+  if (category === 'judgement' && riskLevel === 'high' && isHighRiskTask) {
     return 'critical';
   }
   
-  // High risk = high priority
+  // High: skills/knowledge + high-risk task
+  if (riskLevel === 'high' && isHighRiskTask && category !== 'judgement') {
+    return 'high';
+  }
+  
+  // High: judgement + medium-risk
+  if (category === 'judgement' && riskLevel === 'medium') {
+    return 'high';
+  }
+  
+  // High: any high-risk task competency
   if (riskLevel === 'high') {
     return 'high';
   }
   
-  // Medium risk = medium priority
+  // Medium: governance, policy, training tasks
+  if (isGovernanceTask) {
+    return 'medium';
+  }
+  
+  // Medium: medium-risk tasks
   if (riskLevel === 'medium') {
     return 'medium';
   }
   
-  // Low risk = low priority
+  // Low: everything else
   return 'low';
 }
 
@@ -134,21 +202,41 @@ function determineConfidenceStatus(avgConfidence: number): ConfidenceStatus {
 }
 
 /**
- * Check if human review is required
+ * Check if human review is required - layered approach
+ * 
+ * Rules:
+ * - verified → generally no review needed
+ * - assumed → always requires review
+ * - tentative → depends on risk level and category
  */
 function requiresHumanReview(
+  confidenceStatus: ConfidenceStatus,
   riskLevel: 'low' | 'medium' | 'high',
-  confidence: number,
   category: 'knowledge' | 'skills' | 'judgement'
 ): boolean {
-  // High risk always requires review
-  if (riskLevel === 'high') return true;
+  // Verified competencies generally don't need review
+  if (confidenceStatus === 'verified') {
+    return false;
+  }
   
-  // Low confidence requires review
-  if (confidence < 0.7) return true;
+  // Assumed always needs review
+  if (confidenceStatus === 'assumed') {
+    return true;
+  }
   
-  // Judgement competencies require review
-  if (category === 'judgement') return true;
+  // Tentative: depends on risk and category
+  if (confidenceStatus === 'tentative') {
+    // High-risk tasks with tentative confidence need review
+    if (riskLevel === 'high') {
+      return true;
+    }
+    // Judgement competencies with tentative confidence need review
+    if (category === 'judgement') {
+      return true;
+    }
+    // Medium/low risk knowledge/skills can proceed without review
+    return false;
+  }
   
   return false;
 }
@@ -208,6 +296,8 @@ export function normalizeCompetencies(
   const normalized: NormalizedCompetency[] = [];
   
   mappings.forEach((mapping, mappingIndex) => {
+    // IMPORTANT: Use taskId and taskDescription directly from mapping
+    // These are preserved from the original extraction and must not be modified
     const { taskId, taskDescription, riskLevel, requirements, suggestedCompetencyNeeds } = mapping;
     
     // Calculate average confidence from requirements
@@ -215,30 +305,41 @@ export function normalizeCompetencies(
       ? requirements.reduce((sum, r) => sum + r.confidence, 0) / requirements.length
       : 0.5;
     
+    // Get confidence status
+    const confidenceStatus = determineConfidenceStatus(avgConfidence);
+    
     // Get linked regulatory basis from requirements
     const linkedRegulatoryBasis = Array.from(
       new Set(requirements.map(r => r.regulatoryBasis.article))
     );
     
-    // Get linked requirement (primary requirement title)
-    const primaryRequirement = requirements.find(r => r.mappingRole === 'primary') 
+    // Get primary and supporting requirements
+    const primaryReq = requirements.find(r => r.mappingRole === 'primary') 
+      || requirements.find(r => r.mappingRole === 'supporting')
       || requirements[0];
-    const linkedRequirement = primaryRequirement?.businessRequirement.title || 'Unknown';
+    const primaryRequirement = primaryReq?.businessRequirement.title || 'Unknown';
+    
+    // Get supporting requirements (all non-primary)
+    const supportingRequirements = requirements
+      .filter(r => r !== primaryReq)
+      .map(r => r.businessRequirement.title)
+      .filter((title, idx, arr) => arr.indexOf(title) === idx); // Remove duplicates
     
     // Process knowledge competencies
-    suggestedCompetencyNeeds.knowledge.forEach((text, idx) => {
+    suggestedCompetencyNeeds.knowledge.forEach((text) => {
       normalized.push({
-        competencyId: generateCompetencyId(taskId, linkedRequirement, normalized.length),
+        competencyId: generateCompetencyId(taskId, primaryRequirement, normalized.length),
         taskId,
         taskDescription,
         category: 'knowledge',
         text,
-        linkedRequirement,
+        primaryRequirement,
+        supportingRequirements,
         linkedRegulatoryBasis,
         riskLevel,
-        priority: determinePriority(riskLevel, taskDescription),
-        confidenceStatus: determineConfidenceStatus(avgConfidence),
-        humanReviewRequired: requiresHumanReview(riskLevel, avgConfidence, 'knowledge'),
+        priority: determinePriority(riskLevel, taskDescription, 'knowledge'),
+        confidenceStatus,
+        humanReviewRequired: requiresHumanReview(confidenceStatus, riskLevel, 'knowledge'),
         sourceMappingIndex: mappingIndex,
       });
     });
@@ -247,19 +348,20 @@ export function normalizeCompetencies(
     const enrichedSkills = getEnrichedSkills(taskDescription);
     const allSkills = Array.from(new Set([...suggestedCompetencyNeeds.skills, ...enrichedSkills]));
     
-    allSkills.forEach((text, idx) => {
+    allSkills.forEach((text) => {
       normalized.push({
-        competencyId: generateCompetencyId(taskId, linkedRequirement, normalized.length),
+        competencyId: generateCompetencyId(taskId, primaryRequirement, normalized.length),
         taskId,
         taskDescription,
         category: 'skills',
         text,
-        linkedRequirement,
+        primaryRequirement,
+        supportingRequirements,
         linkedRegulatoryBasis,
         riskLevel,
-        priority: determinePriority(riskLevel, taskDescription),
-        confidenceStatus: determineConfidenceStatus(avgConfidence),
-        humanReviewRequired: requiresHumanReview(riskLevel, avgConfidence, 'skills'),
+        priority: determinePriority(riskLevel, taskDescription, 'skills'),
+        confidenceStatus,
+        humanReviewRequired: requiresHumanReview(confidenceStatus, riskLevel, 'skills'),
         sourceMappingIndex: mappingIndex,
       });
     });
@@ -268,19 +370,20 @@ export function normalizeCompetencies(
     const enrichedJudgement = getEnrichedJudgement(taskDescription);
     const allJudgement = Array.from(new Set([...suggestedCompetencyNeeds.judgement, ...enrichedJudgement]));
     
-    allJudgement.forEach((text, idx) => {
+    allJudgement.forEach((text) => {
       normalized.push({
-        competencyId: generateCompetencyId(taskId, linkedRequirement, normalized.length),
+        competencyId: generateCompetencyId(taskId, primaryRequirement, normalized.length),
         taskId,
         taskDescription,
         category: 'judgement',
         text,
-        linkedRequirement,
+        primaryRequirement,
+        supportingRequirements,
         linkedRegulatoryBasis,
         riskLevel,
-        priority: determinePriority(riskLevel, taskDescription),
-        confidenceStatus: determineConfidenceStatus(avgConfidence),
-        humanReviewRequired: requiresHumanReview(riskLevel, avgConfidence, 'judgement'),
+        priority: determinePriority(riskLevel, taskDescription, 'judgement'),
+        confidenceStatus,
+        humanReviewRequired: requiresHumanReview(confidenceStatus, riskLevel, 'judgement'),
         sourceMappingIndex: mappingIndex,
       });
     });
