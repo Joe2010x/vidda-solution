@@ -10,3 +10,6 @@ export type {
   EnhancedValidationResult,
   ReviewAssessment,
 } from './validator';
+
+export { validateParsedJobDescription } from './jdValidator';
+export type { JDValidationResult, JDValidationIssue } from './jdValidator';

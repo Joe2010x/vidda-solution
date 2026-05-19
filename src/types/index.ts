@@ -8,6 +8,77 @@ export interface Role {
   department: string;
 }
 
+// Enhanced JD parsing types
+export type FunctionType =
+  | "customer_onboarding"
+  | "transaction_monitoring"
+  | "kyc_due_diligence"
+  | "investigation"
+  | "escalation"
+  | "reporting"
+  | "governance"
+  | "data_handling"
+  | "training_oversight"
+  | "other";
+
+export type RiskCategory =
+  | "AML"
+  | "KYC"
+  | "sanctions"
+  | "fraud"
+  | "documentation"
+  | "data_protection"
+  | "governance";
+
+export type SeniorityLevel = "junior" | "mid" | "senior" | "manager" | "executive" | "unknown";
+
+export interface RiskHint {
+  category: RiskCategory;
+  level: "low" | "medium" | "high";
+  reason: string;
+}
+
+export interface ParsedTask {
+  taskId: string;
+  description: string;
+  evidenceText: string;
+  riskHints: RiskHint[];
+  functionType: FunctionType;
+}
+
+export interface AmbiguityFlag {
+  field: string;
+  issue: string;
+  suggestedQuestion: string;
+}
+
+export interface ParsedJobDescription {
+  roleName: string;
+  department?: string;
+  seniority?: SeniorityLevel;
+  managementResponsibility: boolean | "unknown";
+  roleSummary: string;
+  tasks: ParsedTask[];
+  overallRiskLevel: "low" | "medium" | "high";
+  riskCategories: RiskCategory[];
+  ambiguityFlags: AmbiguityFlag[];
+  confidence: number;
+  needsClarification: boolean;
+  clarifyingQuestions: string[];
+}
+
+export interface JDQualityMetrics {
+  confidence: number;
+  needsHumanReview: boolean;
+  issues: string[];
+}
+
+export interface ParsedJobDescriptionResponse {
+  parsedRole: ParsedJobDescription;
+  quality: JDQualityMetrics;
+  nextRecommendedAction: "map_role_to_risks" | "request_clarification";
+}
+
 // AMLR (Anti-Money Laundering Regulation) types
 export interface AMLRRequirement {
   id: string;
