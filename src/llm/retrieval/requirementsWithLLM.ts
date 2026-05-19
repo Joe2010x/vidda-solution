@@ -1,5 +1,5 @@
 import { Role, AMLRRequirement } from '@/types';
-import { amirRequirements } from '@/data/amirRequirements';
+import { amlrRequirements } from '@/data/amlrRequirements';
 import { analyzeRisksWithLLM, type RiskAnalysisResult } from '../extraction/riskAnalyzer';
 
 /**
@@ -20,7 +20,7 @@ export async function retrieveRequirementsWithLLM(
     const { riskCategories, analysis } = riskAnalysis;
 
     // Score requirements based on LLM-identified risks
-    const scoredRequirements = amirRequirements.map((req) => {
+    const scoredRequirements = amlrRequirements.map((req) => {
       // Calculate score based on LLM confidence levels
       let score = 0;
       const matchingRisks = analysis.identifiedRisks.filter((risk) => req.riskCategories.includes(risk.category));

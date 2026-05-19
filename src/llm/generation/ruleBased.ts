@@ -4,7 +4,7 @@ import {
   TrainingPlan,
   TrainingPlanItem,
 } from '@/types';
-import { trainingModules } from '@/data/amirRequirements';
+import { trainingModules } from '@/data/amlrRequirements';
 
 /**
  * Generate a training plan based on role and retrieved requirements (rule-based)

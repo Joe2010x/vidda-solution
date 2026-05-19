@@ -6,7 +6,7 @@
 import { Role, AMLRRequirement, TrainingPlan, TrainingPlanItem } from '@/types';
 import { getLLMClient, type LLMMessage } from '../preparation/client';
 import { TRAINING_PLAN_SYSTEM_PROMPT, createTrainingPlanPrompt } from './prompts';
-import { trainingModules } from '@/data/amirRequirements';
+import { trainingModules } from '@/data/amlrRequirements';
 import { parseJSONFromLLM } from '../preparation/parseJson';
 
 export interface LLMSelectedModule {

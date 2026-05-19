@@ -1,5 +1,5 @@
 import { Role, AMLRRequirement } from '@/types';
-import { amirRequirements } from '@/data/amirRequirements';
+import { amlrRequirements } from '@/data/amlrRequirements';
 
 // Keyword mapping from role tasks to risk categories
 const taskToRiskCategoryMap: Record<string, string[]> = {
@@ -113,7 +113,7 @@ export function retrieveRequirementsRuleBased(role: Role): {
   const mappedRisks = extractRiskCategories(role.tasks);
 
   // Score each requirement based on risk category matches
-  const scoredRequirements = amirRequirements.map((req) => {
+  const scoredRequirements = amlrRequirements.map((req) => {
     const matchingCategories = req.riskCategories.filter((cat) => mappedRisks.includes(cat));
     const score = matchingCategories.length;
     return { requirement: req, score };
@@ -128,7 +128,7 @@ export function retrieveRequirementsRuleBased(role: Role): {
   // For high-risk roles, include all high-priority requirements even without direct match
   if (role.riskLevel === 'high') {
     const existingIds = new Set(matchedRequirements.map((r) => r.id));
-    amirRequirements.forEach((req) => {
+    amlrRequirements.forEach((req) => {
       if (!existingIds.has(req.id) && req.riskCategories.includes('governance')) {
         matchedRequirements.push(req);
       }

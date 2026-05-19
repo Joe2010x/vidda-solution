@@ -9,7 +9,7 @@ import {
   RISK_ANALYSIS_SYSTEM_PROMPT,
   createRiskAnalysisPrompt,
 } from './prompts';
-import { amirRequirements } from '@/data/amirRequirements';
+import { amlrRequirements } from '@/data/amlrRequirements';
 import { parseJSONFromLLM } from '../preparation/parseJson';
 
 export interface RiskAnalysisResult {
@@ -34,7 +34,7 @@ export interface EnhancedRiskExtraction {
  */
 export function getAvailableRiskCategories(): string[] {
   const categories = new Set<string>();
-  amirRequirements.forEach((req) => {
+  amlrRequirements.forEach((req) => {
     req.riskCategories.forEach((cat) => categories.add(cat));
   });
   return Array.from(categories);

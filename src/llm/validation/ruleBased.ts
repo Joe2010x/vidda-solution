@@ -1,5 +1,5 @@
 import { Role, AMLRRequirement, TrainingPlan, ValidationScore } from '@/types';
-import { amirRequirements } from '@/data/amirRequirements';
+import { amlrRequirements } from '@/data/amlrRequirements';
 
 /**
  * Calculate validation score for a generated training plan (rule-based)
@@ -13,7 +13,7 @@ export function calculateValidationScoreRuleBased(
 ): ValidationScore {
   // 1. Risk Coverage Score: How well does the plan cover the identified risk categories?
   const allRiskCategories = new Set<string>();
-  amirRequirements.forEach((req) => {
+  amlrRequirements.forEach((req) => {
     req.riskCategories.forEach((cat) => allRiskCategories.add(cat));
   });
 
@@ -80,7 +80,7 @@ export function calculateValidationScoreRuleBased(
   const completenessScore = Math.min(
     100,
     Math.round(
-      (requirements.length / amirRequirements.length) *
+      (requirements.length / amlrRequirements.length) *
         100 *
         (role.riskLevel === 'high' ? 1.2 : role.riskLevel === 'medium' ? 1 : 0.8)
     )

@@ -1,4 +1,4 @@
-import { amirRequirements } from '@/data/amirRequirements';
+import { amlrRequirements } from '@/data/amlrRequirements';
 import { getLLMClient } from '@/llm/preparation/client';
 import { retrieve } from '@/llm/rag/retriever';
 import { buildEnrichmentPrompt } from '@/llm/rag/prompts';
@@ -23,7 +23,7 @@ export interface EnrichRiskResponse {
 }
 
 function categoryToQuery(riskCategory: string): string {
-  const req = amirRequirements.find(r => r.riskCategories.includes(riskCategory));
+  const req = amlrRequirements.find(r => r.riskCategories.includes(riskCategory));
   if (req) {
     return `${req.title}. ${req.description.split('.')[0]}.`;
   }

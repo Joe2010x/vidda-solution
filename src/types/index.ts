@@ -84,9 +84,20 @@ export interface AMLRRequirement {
   id: string;
   title: string;
   description: string;
+  
+  // Regulatory traceability
+  article?: string;              // "AMLR Article 12"
+  paragraph?: string;            // "Article 12(1)"
+  sourceExcerpt?: string;        // Direct quote from regulation
+  
   riskCategories: string[];
+  appliesToTaskTypes?: string[]; // onboarding, monitoring, escalation, reporting...
   competencyRequirements: string[];
   trainingModuleIds: string[];
+  
+  // Traceability and confidence
+  relevanceReason?: string;      // Why this requirement applies
+  confidence?: number;           // 0-1 confidence score
 }
 
 // Training module types

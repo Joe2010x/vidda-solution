@@ -1,12 +1,17 @@
 import { AMLRRequirement, TrainingModule } from "@/types";
 
-export const amirRequirements: AMLRRequirement[] = [
+export const amlrRequirements: AMLRRequirement[] = [
   {
-    id: "amir-001",
+    id: "amlr-001",
     title: "Customer Due Diligence (CDD)",
     description:
       "Requirement to identify and verify the identity of customers and beneficial owners, understand the nature of the business relationship, and conduct ongoing monitoring.",
+    article: "AMLR Article 12",
+    paragraph: "Article 12(1)",
+    sourceExcerpt:
+      "Obliged entities shall apply customer due diligence measures when establishing a business relationship, when carrying out occasional transactions, when there is a suspicion of money laundering or terrorist financing, or when there are doubts about the veracity or adequacy of previously obtained customer identification data.",
     riskCategories: ["customer-identification", "beneficial-ownership", "ongoing-monitoring"],
+    appliesToTaskTypes: ["onboarding", "customer-verification", "periodic-review"],
     competencyRequirements: [
       "Knowledge of CDD procedures",
       "Ability to verify identity documents",
@@ -14,13 +19,21 @@ export const amirRequirements: AMLRRequirement[] = [
       "Risk-based approach application",
     ],
     trainingModuleIds: ["mod-001", "mod-002", "mod-003"],
+    relevanceReason:
+      "Core AMLR requirement applicable to all customer-facing roles that handle onboarding or ongoing customer relationships.",
+    confidence: 0.95,
   },
   {
-    id: "amir-002",
+    id: "amlr-002",
     title: "Enhanced Due Diligence (EDD)",
     description:
       "Additional measures required for high-risk customers, including PEPs, high-risk third countries, and complex unusual transactions.",
+    article: "AMLR Article 12",
+    paragraph: "Article 12(4)",
+    sourceExcerpt:
+      "For higher-risk situations, obliged entities shall apply enhanced customer due diligence measures. This includes relationships with politically exposed persons, high-risk third countries, and complex or unusually large transactions.",
     riskCategories: ["pep", "high-risk-country", "complex-transactions"],
+    appliesToTaskTypes: ["high-risk-assessment", "pep-screening", "enhanced-monitoring"],
     competencyRequirements: [
       "PEP identification and handling",
       "High-risk country assessment",
@@ -28,13 +41,21 @@ export const amirRequirements: AMLRRequirement[] = [
       "Enhanced monitoring techniques",
     ],
     trainingModuleIds: ["mod-004", "mod-005"],
+    relevanceReason:
+      "Required for roles that assess customer risk levels or handle high-risk customer relationships.",
+    confidence: 0.90,
   },
   {
-    id: "amir-003",
+    id: "amlr-003",
     title: "Suspicious Activity Reporting",
     description:
       "Obligation to detect, report, and handle suspicious transactions through internal procedures and external reporting to FIU.",
+    article: "AMLR Article 9",
+    paragraph: "Article 9(1)",
+    sourceExcerpt:
+      "Obliged entities and their directors and employees shall cooperate fully with the Financial Intelligence Unit in preventing, detecting and combating money laundering and terrorist financing. This includes promptly reporting any fact which might be an indication of money laundering or terrorist financing.",
     riskCategories: ["suspicious-activity", "reporting", "tipping-off"],
+    appliesToTaskTypes: ["transaction-monitoring", "escalation", "sar-filing"],
     competencyRequirements: [
       "Red flag identification",
       "SAR filing procedures",
@@ -42,13 +63,21 @@ export const amirRequirements: AMLRRequirement[] = [
       "Tipping-off prevention",
     ],
     trainingModuleIds: ["mod-006", "mod-007"],
+    relevanceReason:
+      "Essential for roles involved in transaction monitoring, compliance, or any position with responsibility to identify and report suspicious activity.",
+    confidence: 0.92,
   },
   {
-    id: "amir-004",
+    id: "amlr-004",
     title: "Sanctions Compliance",
     description:
       "Requirement to screen customers and transactions against applicable sanctions lists and freeze assets of designated persons.",
+    article: "AMLR Article 9",
+    paragraph: "Article 9(3)",
+    sourceExcerpt:
+      "Obliged entities shall take appropriate measures to ensure that their foreign branches and majority-owned subsidiaries comply with the measures required in accordance with this Directive. This includes screening against applicable sanctions lists and asset freezing requirements.",
     riskCategories: ["sanctions", "asset-freezing", "screening"],
+    appliesToTaskTypes: ["sanctions-screening", "transaction-blocking", "asset-freezing"],
     competencyRequirements: [
       "Sanctions list screening",
       "False positive analysis",
@@ -56,13 +85,21 @@ export const amirRequirements: AMLRRequirement[] = [
       "License application process",
     ],
     trainingModuleIds: ["mod-008", "mod-009"],
+    relevanceReason:
+      "Critical for roles that process transactions, onboard customers, or operate in jurisdictions with sanctions obligations.",
+    confidence: 0.88,
   },
   {
-    id: "amir-005",
+    id: "amlr-005",
     title: "Record Keeping",
     description:
       "Requirement to maintain adequate records of customer due diligence, transactions, and risk assessments for the prescribed retention period.",
+    article: "AMLR Article 13",
+    paragraph: "Article 13(1)",
+    sourceExcerpt:
+      "Obliged entities shall keep the following documents and information for the purposes of preventing, detecting and investigating potential money laundering or terrorist financing: copies of documents and information obtained through customer due diligence, supporting records and documents for transactions, and risk assessments.",
     riskCategories: ["documentation", "record-keeping", "audit-trail"],
+    appliesToTaskTypes: ["documentation", "audit-preparation", "data-retention"],
     competencyRequirements: [
       "Documentation standards",
       "Record retention requirements",
@@ -70,13 +107,21 @@ export const amirRequirements: AMLRRequirement[] = [
       "Audit preparation",
     ],
     trainingModuleIds: ["mod-010"],
+    relevanceReason:
+      "Applicable to all roles that handle customer data, process transactions, or maintain compliance records.",
+    confidence: 0.94,
   },
   {
-    id: "amir-006",
+    id: "amlr-006",
     title: "Risk Assessment",
     description:
       "Requirement to conduct comprehensive money laundering/terrorist financing risk assessments at business, customer, and transaction levels.",
+    article: "AMLR Article 13",
+    paragraph: "Article 13(2)",
+    sourceExcerpt:
+      "Obliged entities shall take appropriate measures so that their relevant employees are aware of the provisions of this Directive and of the internal policies, procedures and controls adopted by the entity in accordance with this Directive. This includes understanding and applying risk assessment methodologies.",
     riskCategories: ["risk-assessment", "ml-tf-risk", "inherent-risk"],
+    appliesToTaskTypes: ["risk-scoring", "customer-rating", "periodic-assessment"],
     competencyRequirements: [
       "Risk assessment methodologies",
       "Risk scoring techniques",
@@ -84,13 +129,21 @@ export const amirRequirements: AMLRRequirement[] = [
       "Risk reporting",
     ],
     trainingModuleIds: ["mod-011", "mod-012"],
+    relevanceReason:
+      "Essential for roles responsible for assessing customer risk, conducting periodic reviews, or making risk-based decisions.",
+    confidence: 0.91,
   },
   {
-    id: "amir-007",
+    id: "amlr-007",
     title: "Internal Controls and Governance",
     description:
       "Requirement to establish adequate internal policies, procedures, and controls to mitigate ML/TF risks, including senior management oversight.",
+    article: "AMLR Article 9",
+    paragraph: "Article 9(1)",
+    sourceExcerpt:
+      "Obliged entities shall establish and maintain adequate internal policies, procedures and controls to mitigate and manage effectively the risks of money laundering and terrorist financing identified at Union level by the risk assessment referred to in Article 5(1) and at national level by the risk assessments referred to in Article 5(2) as well as any relevant sectoral risk assessments carried out at Union or national level, and risks associated with individual customers.",
     riskCategories: ["internal-controls", "governance", "policies"],
+    appliesToTaskTypes: ["policy-development", "control-design", "governance-oversight"],
     competencyRequirements: [
       "Policy development",
       "Control design and implementation",
@@ -98,6 +151,31 @@ export const amirRequirements: AMLRRequirement[] = [
       "Compliance monitoring",
     ],
     trainingModuleIds: ["mod-013", "mod-014"],
+    relevanceReason:
+      "Primarily applicable to management and compliance roles responsible for establishing and maintaining AML/CFT frameworks.",
+    confidence: 0.87,
+  },
+  {
+    id: "amlr-008",
+    title: "Role-specific AML Awareness and Training",
+    description:
+      "Requirement for ongoing, specific training appropriate to the employee's function and risk exposure, as mandated by AMLR Article 12.",
+    article: "AMLR Article 12",
+    paragraph: "Article 12(3)",
+    sourceExcerpt:
+      "Obliged entities shall ensure that their relevant employees receive regular training on the provisions of this Directive, the entity's internal policies and procedures, and the latest typologies and trends in money laundering and terrorist financing. The training shall be specific to the employee's function and risk exposure, and records of training shall be maintained.",
+    riskCategories: ["AML", "KYC", "fraud", "sanctions", "data-protection"],
+    appliesToTaskTypes: ["onboarding", "monitoring", "escalation", "reporting", "customer-verification"],
+    competencyRequirements: [
+      "Recognise suspicious activity",
+      "Know how to escalate",
+      "Understand role-specific AML controls",
+      "Apply risk-based approach to daily tasks",
+    ],
+    trainingModuleIds: ["mod-001", "mod-006", "mod-011"],
+    relevanceReason:
+      "Universal requirement for all employees whose work is relevant for compliance with AMLR. Training must be specific to the employee's function/activity and their risk exposure.",
+    confidence: 0.96,
   },
 ];
 
