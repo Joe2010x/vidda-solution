@@ -14,6 +14,7 @@ export interface RiskMapping {
   evidenceText: string;
   
   riskCategory: RiskCategory | string;
+  riskCategories: string[]; // Multiple risk tags
   riskLevel: 'low' | 'medium' | 'high';
   reason: string;
   
@@ -33,23 +34,78 @@ export interface MatchedRequirement {
 }
 
 /**
+ * Business Requirement (业务需求)
+ * e.g., CDD, EDD, SAR, Risk Assessment, Internal Controls
+ */
+export interface BusinessRequirement {
+  id: string;
+  title: string; // e.g., "Enhanced Due Diligence"
+}
+
+/**
+ * Regulatory Basis (法规依据)
+ * e.g., AMLR Article 9, 12, 13
+ */
+export interface RegulatoryBasis {
+  article: string; // e.g., "AMLR Article 9"
+  articleTitle: string; // e.g., "Internal policies, procedures and controls"
+  sourceExcerpt: string;
+  sourceChunkId?: string;
+}
+
+/**
+ * Mapping role type - how the requirement relates to the task
+ */
+export type RequirementMappingRole = 
+  | "primary"           // Direct regulatory requirement for the task
+  | "supporting"        // Supporting regulatory basis
+  | "training_obligation"    // Training requirement (Article 12)
+  | "competency_obligation"; // Competency assessment requirement (Article 13)
+
+/**
  * Task-level requirement mapping with competency needs
  */
 export interface TaskRequirementMapping {
   taskId: string;
+  /** The task description - must match the original input exactly */
   taskDescription: string;
+  /** Original task description from the source - for audit trail verification */
+  originalTaskDescription: string;
+  /** Optional short label for UI display (does not affect traceability) */
+  displayLabel?: string;
   riskCategory: string;
+  riskCategories: string[]; // Multiple risk tags
   riskLevel: 'low' | 'medium' | 'high';
   
   // Matched requirements with full details
-  requirements: MatchedRequirementDetail[];
+  requirements: RequirementMapping[];
   
   // Suggested competency needs based on requirements
   suggestedCompetencyNeeds: CompetencyNeedSummary;
 }
 
 /**
- * Matched requirement with full traceability
+ * Requirement Mapping (完整的需求映射)
+ * Separates business requirement from regulatory basis
+ */
+export interface RequirementMapping {
+  // Business Requirement (业务需求)
+  businessRequirement: BusinessRequirement;
+  
+  // Regulatory Basis (法规依据)
+  regulatoryBasis: RegulatoryBasis;
+  
+  // How this requirement relates to the task
+  mappingRole: RequirementMappingRole;
+  
+  // Confidence and reasoning
+  confidence: number;
+  relevanceReason: string;
+}
+
+/**
+ * Matched requirement with full traceability (legacy interface for backward compatibility)
+ * @deprecated Use RequirementMapping instead
  */
 export interface MatchedRequirementDetail {
   id: string;
@@ -67,6 +123,58 @@ export interface CompetencyNeedSummary {
   knowledge: string[];
   skills: string[];
   judgement: string[];
+}
+
+/**
+ * Confidence status for normalized competencies
+ */
+export type ConfidenceStatus = 'verified' | 'tentative' | 'assumed';
+
+/**
+ * Priority level for normalized competencies
+ */
+export type PriorityLevel = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * Normalized and enriched competency item with full traceability
+ * Used by Competency Normalizer to create structured competency objects
+ */
+export interface NormalizedCompetency {
+  /** Unique identifier: e.g., "comp-task-2-sar-001" */
+  competencyId: string;
+  
+  /** Source task ID */
+  taskId: string;
+  
+  /** Source task description */
+  taskDescription: string;
+  
+  /** Competency category */
+  category: 'knowledge' | 'skills' | 'judgement';
+  
+  /** The competency text/description */
+  text: string;
+  
+  /** Linked business requirement title */
+  linkedRequirement: string;
+  
+  /** Linked regulatory articles */
+  linkedRegulatoryBasis: string[];
+  
+  /** Risk level inherited from task */
+  riskLevel: 'low' | 'medium' | 'high';
+  
+  /** Priority level for training planning */
+  priority: PriorityLevel;
+  
+  /** Confidence status */
+  confidenceStatus: ConfidenceStatus;
+  
+  /** Whether human review is required */
+  humanReviewRequired: boolean;
+  
+  /** Index in the source mapping array */
+  sourceMappingIndex: number;
 }
 
 /**

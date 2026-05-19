@@ -5,7 +5,9 @@ import type {
   MatchedRequirement, 
   EnhancedRetrievalResult, 
   TaskRequirementMapping,
-  MatchedRequirementDetail,
+  RequirementMapping,
+  BusinessRequirement,
+  RegulatoryBasis,
   CompetencyNeedSummary,
   RetrievalSummary,
   RetrievalValidation,
@@ -206,7 +208,7 @@ export function retrieveRequirementsEnhanced(role: Role): EnhancedRetrievalResul
     // Check for low confidence mappings
     matchedReqs.forEach(req => {
       if (req.confidence < 0.7) {
-        lowConfidenceMappings.push(`${taskId}: ${req.title}`);
+        lowConfidenceMappings.push(`${taskId}: ${req.businessRequirement.title}`);
       }
     });
 
@@ -216,7 +218,9 @@ export function retrieveRequirementsEnhanced(role: Role): EnhancedRetrievalResul
     taskRequirementMappings.push({
       taskId,
       taskDescription: task,
+      originalTaskDescription: task, // Preserve original for audit trail
       riskCategory: taskRiskCategories.join(', '),
+      riskCategories: taskRiskCategories,
       riskLevel,
       requirements: matchedReqs,
       suggestedCompetencyNeeds: competencyNeeds,
@@ -256,9 +260,51 @@ export function retrieveRequirementsEnhanced(role: Role): EnhancedRetrievalResul
 }
 
 /**
- * Match AMLR requirements to task risk categories
+ * Get article title based on article number
  */
-function matchRequirementsToTask(riskCategories: string[]): MatchedRequirementDetail[] {
+function getArticleTitle(article: string): string {
+  const articleMap: Record<string, string> = {
+    'AMLR Article 9': 'Internal policies, procedures and controls',
+    'AMLR Article 12': 'Awareness of requirements',
+    'AMLR Article 13': 'Integrity of employees',
+  };
+  return articleMap[article] || 'Regulatory requirement';
+}
+
+/**
+ * Determine mapping role based on requirement type and risk categories
+ */
+function determineMappingRole(requirement: AMLRRequirement, riskCategories: string[]): 'primary' | 'supporting' | 'training_obligation' | 'competency_obligation' {
+  // Role-specific training (Article 12) is always a training obligation
+  if (requirement.id === 'amlr-008') {
+    return 'training_obligation';
+  }
+  
+  // Record keeping (Article 13) relates to competency assessment
+  if (requirement.id === 'amlr-005') {
+    return 'competency_obligation';
+  }
+  
+  // Risk assessment (Article 13) also relates to competency
+  if (requirement.id === 'amlr-006') {
+    return 'competency_obligation';
+  }
+  
+  // For high-risk categories, CDD/EDD/SAR are primary
+  const highRiskCategories = ['pep', 'suspicious-activity', 'sanctions', 'high-risk-country'];
+  if (riskCategories.some(cat => highRiskCategories.includes(cat))) {
+    return 'primary';
+  }
+  
+  // Default to primary for core requirements
+  return 'primary';
+}
+
+/**
+ * Match AMLR requirements to task risk categories
+ * Returns structured RequirementMapping with business requirement and regulatory basis
+ */
+function matchRequirementsToTask(riskCategories: string[]): RequirementMapping[] {
   return amlrRequirements
     .map(req => {
       const matchingCategories = req.riskCategories.filter(cat => 
@@ -270,29 +316,44 @@ function matchRequirementsToTask(riskCategories: string[]): MatchedRequirementDe
 
       const confidence = Math.min(1, matchingCategories.length / req.riskCategories.length) * (req.confidence || 0.8);
 
-      return {
+      // Build business requirement
+      const businessRequirement: BusinessRequirement = {
         id: req.id,
         title: req.title,
+      };
+
+      // Build regulatory basis
+      const regulatoryBasis: RegulatoryBasis = {
         article: req.article || 'Unknown',
+        articleTitle: getArticleTitle(req.article || ''),
         sourceExcerpt: req.sourceExcerpt || '',
-        relevanceReason: req.relevanceReason || '',
+      };
+
+      // Determine mapping role
+      const mappingRole = determineMappingRole(req, riskCategories);
+
+      return {
+        businessRequirement,
+        regulatoryBasis,
+        mappingRole,
         confidence: Math.round(confidence * 100) / 100,
+        relevanceReason: req.relevanceReason || '',
       };
     })
-    .filter((req): req is MatchedRequirementDetail => req !== null)
+    .filter((req): req is RequirementMapping => req !== null)
     .sort((a, b) => b.confidence - a.confidence);
 }
 
 /**
  * Build competency needs from matched requirements
  */
-function buildCompetencyNeeds(requirements: MatchedRequirementDetail[]): CompetencyNeedSummary {
+function buildCompetencyNeeds(requirements: RequirementMapping[]): CompetencyNeedSummary {
   const knowledge: string[] = [];
   const skills: string[] = [];
   const judgement: string[] = [];
 
   requirements.forEach(req => {
-    const fullReq = amlrRequirements.find(r => r.id === req.id);
+    const fullReq = amlrRequirements.find(r => r.id === req.businessRequirement.id);
     if (fullReq) {
       fullReq.competencyRequirements.forEach(comp => {
         if (comp.toLowerCase().includes('knowledge') || comp.toLowerCase().includes('understanding')) {
@@ -358,6 +419,39 @@ function buildReviewReasons(lowConfidenceMappings: string[], uncoveredRisks: str
   }
   
   return reasons;
+}
+
+/**
+ * Validate task integrity - ensures no task drift occurred during retrieval
+ * Returns true if all tasks are preserved exactly as input
+ */
+export function validateTaskIntegrity(role: Role, result: EnhancedRetrievalResult): {
+  isValid: boolean;
+  driftedTasks: Array<{ taskId: string; expected: string; actual: string }>;
+  missingTasks: string[];
+} {
+  const driftedTasks: Array<{ taskId: string; expected: string; actual: string }> = [];
+  
+  // Check each mapping for drift
+  result.taskRequirementMappings.forEach(mapping => {
+    if (mapping.taskDescription !== mapping.originalTaskDescription) {
+      driftedTasks.push({
+        taskId: mapping.taskId,
+        expected: mapping.originalTaskDescription,
+        actual: mapping.taskDescription,
+      });
+    }
+  });
+  
+  // Check for missing tasks (tasks in role but not in mappings)
+  const mappedTaskDescriptions = new Set(result.taskRequirementMappings.map(m => m.taskDescription));
+  const missingTasks = role.tasks.filter(task => !mappedTaskDescriptions.has(task));
+  
+  return {
+    isValid: driftedTasks.length === 0 && missingTasks.length === 0,
+    driftedTasks,
+    missingTasks,
+  };
 }
 
 /**

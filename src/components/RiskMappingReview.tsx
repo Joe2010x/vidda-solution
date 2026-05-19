@@ -27,6 +27,7 @@ export default function RiskMappingReview({
 }: RiskMappingReviewProps) {
   const [taskMappings, setTaskMappings] = useState<TaskRiskMapping[]>([]);
   const [showTraceability, setShowTraceability] = useState(false);
+  const [showJsonPreview, setShowJsonPreview] = useState(false);
 
   useEffect(() => {
     // Initialize task mappings from parsed role
@@ -77,12 +78,20 @@ export default function RiskMappingReview({
             Review AI-mapped risks for each task before training plan generation
           </p>
         </div>
-        <button
-          onClick={() => setShowTraceability(!showTraceability)}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          {showTraceability ? "Hide" : "Show"} Traceability
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowTraceability(!showTraceability)}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {showTraceability ? "Hide" : "Show"} Traceability
+          </button>
+          <button
+            onClick={() => setShowJsonPreview(!showJsonPreview)}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {showJsonPreview ? "Hide" : "Show"} JSON
+          </button>
+        </div>
       </div>
 
       {/* Traceability Info */}
@@ -98,6 +107,20 @@ export default function RiskMappingReview({
             <p><strong>Overall Risk Level:</strong> {parsedRole.overallRiskLevel}</p>
             <p><strong>Risk Categories:</strong> {parsedRole.riskCategories.join(", ")}</p>
           </div>
+        </div>
+      )}
+
+      {/* JSON Preview */}
+      {showJsonPreview && (
+        <div className="mb-6 p-4 bg-gray-900 rounded-lg border border-gray-700">
+          <h3 className="text-sm font-medium text-gray-300 mb-2">JSON Data (parsedRole + taskMappings)</h3>
+          <pre className="text-xs text-green-400 overflow-auto max-h-96">
+            {JSON.stringify({
+              jdReviewId,
+              parsedRole,
+              taskMappings
+            }, null, 2)}
+          </pre>
         </div>
       )}
 

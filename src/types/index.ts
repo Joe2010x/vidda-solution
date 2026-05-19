@@ -137,6 +137,10 @@ export interface ValidationScore {
     riskCoverage: number;
     competencyCoverage: number;
     moduleRelevance: number;
+    // Enhanced breakdown fields
+    regulatoryTraceability?: number;
+    humanReviewReadiness?: number;
+    lmsReadiness?: number;
   };
 }
 

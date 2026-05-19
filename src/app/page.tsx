@@ -12,9 +12,9 @@ import {
   ParsedJobDescription,
   JDQualityMetrics,
 } from "@/types";
-import { EnhancedRetrievalResult, TaskRequirementMapping } from "@/types/retrieval";
+import { EnhancedRetrievalResult, TaskRequirementMapping, NormalizedCompetency } from "@/types/retrieval";
 import { roles } from "@/data/roles";
-import { retrieveRequirementsRuleBased as retrieveRequirements, retrieveRequirementsEnhanced, getCompetencyNeeds, checkCoverage } from "@/llm/retrieval";
+import { retrieveRequirementsRuleBased as retrieveRequirements, retrieveRequirementsEnhanced, getCompetencyNeeds, checkCoverage, normalizeCompetencies } from "@/llm/retrieval";
 import { generateTrainingPlanRuleBased as generateTrainingPlan } from "@/llm/generation";
 import { calculateValidationScoreRuleBased as calculateValidationScore } from "@/llm/validation";
 import type {
@@ -28,6 +28,7 @@ import JobDescriptionInput from "@/components/JobDescriptionInput";
 import JdReviewEditor from "@/components/JdReviewEditor";
 import RiskMappingReview from "@/components/RiskMappingReview";
 import RequirementsReview from "@/components/RequirementsReview";
+import CompetencyReview from "@/components/CompetencyReview";
 import TrainingPlanComponent from "@/components/TrainingPlan";
 import ValidationScoreComponent from "@/components/ValidationScore";
 import HumanReviewComponent from "@/components/HumanReview";
@@ -83,6 +84,15 @@ export default function Home() {
   const [retrievalResult, setRetrievalResult] = useState<EnhancedRetrievalResult | null>(null);
   const [approvedMappings, setApprovedMappings] = useState<TaskRequirementMapping[] | null>(null);
 
+  // Competency Review state (after requirements approval)
+  const [showCompetencyReview, setShowCompetencyReview] = useState(false);
+  const [normalizedCompetencies, setNormalizedCompetencies] = useState<NormalizedCompetency[]>([]);
+
+  // JSON modal state for component data viewing
+  const [showJsonModal, setShowJsonModal] = useState(false);
+  const [currentJsonData, setCurrentJsonData] = useState<any>(null);
+  const [currentJsonTitle, setCurrentJsonTitle] = useState<string>('');
+
   // Handle JD parsing complete - shows review screen
   const handleJdParsed = (role: Role, parsedData: ParsedJobDescription, quality: JDQualityMetrics, originalText: string) => {
     setSelectedRole(role);
@@ -132,13 +142,32 @@ export default function Home() {
     setShowJdReview(true);
   };
 
-  // Handle Requirements Review approval - continues to training plan generation
+  // Handle Requirements Review approval - normalizes competencies and shows Competency Review
   const handleRequirementsReviewApproved = async (finalMappings: TaskRequirementMapping[]) => {
     setShowRequirementsReview(false);
     setApprovedMappings(finalMappings);
     setRetrievalResult(null);
     
-    if (!parsedJobDescription) return;
+    // Normalize competencies from the approved mappings
+    const normalized = normalizeCompetencies(finalMappings);
+    setNormalizedCompetencies(normalized);
+    
+    // Show Competency Review
+    setShowCompetencyReview(true);
+  };
+
+  // Handle Requirements Review rejection - go back to Risk Mapping
+  const handleRequirementsReviewRejected = () => {
+    setShowRequirementsReview(false);
+    setRetrievalResult(null);
+    setShowRiskMappingReview(true);
+  };
+
+  // Handle Competency Review approval - continues to training plan generation
+  const handleCompetencyReviewApproved = async () => {
+    setShowCompetencyReview(false);
+    
+    if (!parsedJobDescription || !approvedMappings) return;
     
     // Convert approved ParsedJobDescription to Role for pipeline
     const role: Role = {
@@ -151,14 +180,15 @@ export default function Home() {
     };
     
     // Continue with the pipeline using approved mappings
-    await processRoleThroughPipeline(role, finalMappings);
+    await processRoleThroughPipeline(role, approvedMappings);
   };
 
-  // Handle Requirements Review rejection - go back to Risk Mapping
-  const handleRequirementsReviewRejected = () => {
-    setShowRequirementsReview(false);
-    setRetrievalResult(null);
-    setShowRiskMappingReview(true);
+  // Handle Competency Review rejection - go back to Requirements
+  const handleCompetencyReviewRejected = () => {
+    setShowCompetencyReview(false);
+    if (retrievalResult) {
+      setShowRequirementsReview(true);
+    }
   };
 
   // Handle JD review rejection
@@ -604,22 +634,34 @@ export default function Home() {
   const pipelineSteps = [
     "Select Role",
     "Extract Tasks",
-    "JD Review",
     "Risk Mapping",
-    "Risk Review",
     "Requirements",
-    "Req Review",
+    "Competency",
     "Generate Plan",
     "Validate",
-    "Human Review",
   ];
 
   // Update current step based on which review is showing
   const getCurrentStep = () => {
-    if (showJdReview) return 2;
-    if (showRiskMappingReview) return 4;
-    if (showRequirementsReview) return 6;
+    if (showJdReview) return 1;
+    if (showRiskMappingReview) return 2;
+    if (showRequirementsReview) return 3;
+    if (showCompetencyReview) return 4;
     return currentStep;
+  };
+
+  // Handle Show JSON button click for component data
+  const handleShowComponentJson = (title: string, data: any) => {
+    setCurrentJsonTitle(title);
+    setCurrentJsonData(data);
+    setShowJsonModal(true);
+  };
+
+  // Close JSON modal
+  const closeJsonModal = () => {
+    setShowJsonModal(false);
+    setCurrentJsonData(null);
+    setCurrentJsonTitle('');
   };
 
   return (
@@ -816,6 +858,16 @@ export default function Home() {
               />
             )}
 
+            {/* Competency Review (Human-in-the-loop after requirements approval) */}
+            {showCompetencyReview && normalizedCompetencies.length > 0 && (
+              <CompetencyReview
+                competencies={normalizedCompetencies}
+                jdReviewId={jdReviewId}
+                onApprove={handleCompetencyReviewApproved}
+                onReject={handleCompetencyReviewRejected}
+              />
+            )}
+
             {/* AI Processing Status */}
             {isLLMProcessing && llmStatus && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-3">
@@ -844,29 +896,83 @@ export default function Home() {
             )}
 
             {/* Training Plan */}
-            <TrainingPlanComponent
-              trainingPlan={trainingPlan}
-              mappedRisks={mappedRisks}
-              competencyNeeds={competencyNeeds}
-              enrichmentByRisk={enrichmentByRisk}
-              enrichmentError={enrichmentError}
-            />
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Training Plan</h2>
+                <button
+                  onClick={() => handleShowComponentJson('Training Plan', { trainingPlan, mappedRisks, competencyNeeds, enrichmentByRisk })}
+                  className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Show JSON
+                </button>
+              </div>
+              <TrainingPlanComponent
+                trainingPlan={trainingPlan}
+                mappedRisks={mappedRisks}
+                competencyNeeds={competencyNeeds}
+                enrichmentByRisk={enrichmentByRisk}
+                enrichmentError={enrichmentError}
+              />
+            </div>
 
             {/* Validation Score */}
-            <ValidationScoreComponent score={validationScore} />
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Validation Score</h2>
+                <button
+                  onClick={() => handleShowComponentJson('Validation Score', { validationScore, llmValidationAnalysis, llmReviewAssessment })}
+                  className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Show JSON
+                </button>
+              </div>
+              <ValidationScoreComponent score={validationScore} />
+            </div>
 
             {/* Human Review */}
-            <HumanReviewComponent
-              reviewStatus={reviewStatus}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              onNeedsRevision={handleNeedsRevision}
-            />
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">Human Review</h2>
+                <button
+                  onClick={() => handleShowComponentJson('Human Review', { reviewStatus, lmsAssignments })}
+                  className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Show JSON
+                </button>
+              </div>
+              <HumanReviewComponent
+                reviewStatus={reviewStatus}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onNeedsRevision={handleNeedsRevision}
+              />
+            </div>
           </div>
         </div>
 
         {/* LMS Assignments - Full Width */}
-        <div className="mt-6">
+        <div className="mt-6 bg-white rounded-lg shadow-md p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">LMS Assignments</h2>
+            <button
+              onClick={() => handleShowComponentJson('LMS Assignments', { assignments: lmsAssignments })}
+              className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              Show JSON
+            </button>
+          </div>
           <LMSAssignmentComponent
             assignments={lmsAssignments}
             onAssignTraining={() => {}}
@@ -882,6 +988,34 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {/* JSON Modal for Component Data */}
+      {showJsonModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closeJsonModal}>
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">{currentJsonTitle}</h3>
+              <button
+                onClick={closeJsonModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(80vh-60px)]">
+              {currentJsonData ? (
+                <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm font-mono text-gray-800 border border-gray-200">
+                  {JSON.stringify(currentJsonData, null, 2)}
+                </pre>
+              ) : (
+                <p className="text-gray-500 text-center py-8">No data available.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
