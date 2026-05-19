@@ -9,6 +9,8 @@ import {
   ReviewStatus,
   ReviewComment,
   LMSAssignment,
+  ParsedJobDescription,
+  JDQualityMetrics,
 } from "@/types";
 import { roles } from "@/data/roles";
 import { retrieveRequirementsRuleBased as retrieveRequirements, getCompetencyNeeds } from "@/llm/retrieval";
@@ -22,6 +24,7 @@ import type {
 import type { EnrichmentResult } from "@/types/rag";
 import RoleSelector from "@/components/RoleSelector";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
+import JdReviewEditor from "@/components/JdReviewEditor";
 import TrainingPlanComponent from "@/components/TrainingPlan";
 import ValidationScoreComponent from "@/components/ValidationScore";
 import HumanReviewComponent from "@/components/HumanReview";
@@ -61,6 +64,226 @@ export default function Home() {
 
   // Input mode: 'select' for predefined roles, 'custom' for job description input
   const [inputMode, setInputMode] = useState<'select' | 'custom'>('select');
+
+  // JD Review state (for human-in-the-loop after JD parsing)
+  const [parsedJobDescription, setParsedJobDescription] = useState<ParsedJobDescription | null>(null);
+  const [jdQualityMetrics, setJdQualityMetrics] = useState<JDQualityMetrics | null>(null);
+  const [originalJobDescriptionText, setOriginalJobDescriptionText] = useState<string>("");
+  const [showJdReview, setShowJdReview] = useState(false);
+
+  // Handle JD parsing complete - shows review screen
+  const handleJdParsed = (role: Role, parsedData: ParsedJobDescription, quality: JDQualityMetrics, originalText: string) => {
+    setSelectedRole(role);
+    setParsedJobDescription(parsedData);
+    setJdQualityMetrics(quality);
+    setOriginalJobDescriptionText(originalText);
+    setShowJdReview(true);
+    setCurrentStep(1);
+    setIsLLMProcessing(false);
+    setLlmStatus(null);
+  };
+
+  // Handle JD review approval - continues to training plan generation
+  const handleJdReviewApproved = async (approvedRole: ParsedJobDescription) => {
+    setShowJdReview(false);
+    setParsedJobDescription(null);
+    
+    // Convert approved ParsedJobDescription to Role for pipeline
+    const role: Role = {
+      id: `custom-${Date.now()}`,
+      name: approvedRole.roleName,
+      description: approvedRole.roleSummary,
+      tasks: approvedRole.tasks.map(t => t.description),
+      riskLevel: approvedRole.overallRiskLevel,
+      department: approvedRole.department || "Custom",
+    };
+    
+    // Continue with the pipeline
+    await processRoleThroughPipeline(role);
+  };
+
+  // Handle JD review rejection
+  const handleJdReviewRejected = () => {
+    setShowJdReview(false);
+    setParsedJobDescription(null);
+    setParsedJobDescription(null);
+    setSelectedRole(null);
+    setCurrentStep(0);
+  };
+
+  // Handle re-parse JD
+  const handleJdReparsed = () => {
+    setShowJdReview(false);
+    setParsedJobDescription(null);
+    setSelectedRole(null);
+    setCurrentStep(0);
+  };
+
+  // Process role through the full pipeline (after JD review approval or direct selection)
+  const processRoleThroughPipeline = async (role: Role) => {
+    setSelectedRole(role);
+    setCurrentStep(1);
+    setLlmError(null);
+
+    // Step 1: Extract tasks from role description
+    setExtractedTasks(role.tasks);
+
+    try {
+      if (useLLM) {
+        setIsLLMProcessing(true);
+        
+        // Step 2: Retrieve requirements with LLM enhancement (via server API route)
+        setLlmStatus('Analyzing role description and identifying risk categories...');
+        const riskRes = await fetch('/api/llm/analyze-risk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role }),
+        });
+        const riskData = await riskRes.json();
+        setMappedRisks(riskData.mappedRisks);
+        setRetrievedRequirements(riskData.requirements);
+        setRiskAnalysis(riskData.analysis);
+        setCurrentStep(2);
+
+        // Step 2b: Enrich each risk category with regulatory citations (RAG)
+        setLlmStatus('Retrieving regulatory citations...');
+        const enrichResults = await Promise.allSettled(
+          (riskData.mappedRisks as string[]).map((category: string) =>
+            fetch('/api/llm/enrich-risk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ riskCategory: category }),
+            }).then(r => r.json())
+          )
+        );
+        const enrichMap: Record<string, EnrichmentResult> = {};
+        const enrichErrors: string[] = [];
+        enrichResults.forEach((result, i) => {
+          const category = riskData.mappedRisks[i];
+          if (result.status === 'fulfilled' && result.value.success) {
+            enrichMap[category] = { reasoning: result.value.reasoning, citations: result.value.citations, contexts: result.value.contexts ?? [] };
+          } else {
+            const msg = result.status === 'rejected' ? result.reason?.message : result.value.message;
+            enrichErrors.push(`${category}: ${msg}`);
+          }
+        });
+        setEnrichmentByRisk(enrichMap);
+        if (enrichErrors.length > 0) {
+          setEnrichmentError(
+            `Regulatory enrichment failed for ${enrichErrors.length} risk categor${enrichErrors.length === 1 ? 'y' : 'ies'}: ${enrichErrors.join('; ')}`
+          );
+          setTrainingPlan(null);
+          setValidationScore(null);
+          setReviewStatus(null);
+          setLlmStatus(null);
+          setIsLLMProcessing(false);
+          return;
+        } else {
+          setEnrichmentError(null);
+        }
+
+        // Step 3: Get competency needs
+        setLlmStatus('Mapping competency requirements...');
+        const competencies = getCompetencyNeeds(riskData.requirements);
+        setCompetencyNeeds(competencies);
+        setCurrentStep(3);
+
+        // Step 4: Generate training plan with LLM enhancement (via server API route)
+        setLlmStatus('Generating personalised training plan...');
+        const planRes = await fetch('/api/llm/generate-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role,
+            requirements: riskData.requirements,
+            riskCategories: riskData.mappedRisks,
+          }),
+        });
+        const planData = await planRes.json();
+        setTrainingPlan(planData.plan.plan);
+        setCurrentStep(4);
+
+        // Step 5: Validate with LLM enhancement (via server API route)
+        setLlmStatus('Validating training plan against compliance requirements...');
+        const validationRes = await fetch('/api/llm/validate-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role,
+            requirements: riskData.requirements,
+            trainingPlan: planData.plan.plan,
+            riskCategories: riskData.mappedRisks,
+          }),
+        });
+        const validationData = await validationRes.json();
+        setValidationScore(validationData.validationScore);
+        setLlmValidationAnalysis(validationData.llmAnalysis);
+        setLlmReviewAssessment(validationData.reviewAssessment);
+        setLlmStatus('Analysis complete.');
+        setCurrentStep(5);
+      } else {
+        // Use rule-based approach (original logic)
+        const { requirements, mappedRisks: risks } = retrieveRequirements(role);
+        setMappedRisks(risks);
+        setRetrievedRequirements(requirements);
+        setCurrentStep(2);
+
+        // Step 3: Get competency needs
+        const competencies = getCompetencyNeeds(requirements);
+        setCompetencyNeeds(competencies);
+        setCurrentStep(3);
+
+        // Step 4: Generate training plan
+        const plan = generateTrainingPlan(role, requirements);
+        setTrainingPlan(plan);
+        setCurrentStep(4);
+
+        // Step 5: Calculate validation score
+        const score = calculateValidationScore(role, requirements, plan, risks);
+        setValidationScore(score);
+        setCurrentStep(5);
+      }
+
+      // Step 6: Initialize review status
+      setReviewStatus({
+        status: "pending",
+        comments: [],
+        lastUpdated: new Date().toISOString(),
+      });
+      setCurrentStep(6);
+    } catch (error) {
+      console.error('Pipeline error:', error);
+      setLlmError(error instanceof Error ? error.message : 'An error occurred during processing');
+      
+      // Fall back to rule-based approach
+      const { requirements, mappedRisks: risks } = retrieveRequirements(role);
+      setMappedRisks(risks);
+      setRetrievedRequirements(requirements);
+      setCurrentStep(2);
+
+      const competencies = getCompetencyNeeds(requirements);
+      setCompetencyNeeds(competencies);
+      setCurrentStep(3);
+
+      const plan = generateTrainingPlan(role, requirements);
+      setTrainingPlan(plan);
+      setCurrentStep(4);
+
+      const score = calculateValidationScore(role, requirements, plan, risks);
+      setValidationScore(score);
+      setCurrentStep(5);
+
+      setReviewStatus({
+        status: "pending",
+        comments: [],
+        lastUpdated: new Date().toISOString(),
+      });
+      setCurrentStep(6);
+    } finally {
+      setIsLLMProcessing(false);
+      setLlmStatus(null);
+    }
+  };
 
   // Handle role selection - triggers the pipeline
   const handleRoleSelect = async (role: Role | null) => {
@@ -479,6 +702,7 @@ export default function Home() {
             ) : (
               <JobDescriptionInput
                 onSubmit={handleRoleSelect}
+                onParsed={handleJdParsed}
                 onProcessingStart={(status) => {
                   setIsLLMProcessing(true);
                   setLlmStatus(status);
@@ -490,6 +714,18 @@ export default function Home() {
 
           {/* Right Column - Pipeline Results */}
           <div className="lg:col-span-2 space-y-6">
+            {/* JD Review Editor (Human-in-the-loop after JD parsing) */}
+            {showJdReview && parsedJobDescription && jdQualityMetrics && (
+              <JdReviewEditor
+                parsedRole={parsedJobDescription}
+                quality={jdQualityMetrics}
+                originalJobDescription={originalJobDescriptionText}
+                onApprove={handleJdReviewApproved}
+                onReject={handleJdReviewRejected}
+                onReparsed={handleJdReparsed}
+              />
+            )}
+
             {/* AI Processing Status */}
             {isLLMProcessing && llmStatus && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-3">

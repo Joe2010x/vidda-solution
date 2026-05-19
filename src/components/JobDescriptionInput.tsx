@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Role } from "@/types";
+import { Role, ParsedJobDescription, JDQualityMetrics } from "@/types";
 
 interface JobDescriptionInputProps {
   onSubmit: (role: Role) => void;
+  onParsed?: (role: Role, parsedData: ParsedJobDescription, quality: JDQualityMetrics, originalText: string) => void;
   onProcessingStart?: (status: string) => void;
   isLoading?: boolean;
 }
 
 export default function JobDescriptionInput({
   onSubmit,
+  onParsed,
   onProcessingStart,
   isLoading = false,
 }: JobDescriptionInputProps) {
@@ -49,17 +51,38 @@ export default function JobDescriptionInput({
         throw new Error(data.error || "Failed to parse job description");
       }
 
-      if (data.success && data.role) {
-        // Create a Role object with a unique ID
-        const role: Role = {
-          id: `custom-${Date.now()}`,
-          name: data.role.name,
-          description: data.role.description,
-          tasks: data.role.tasks,
-          riskLevel: data.role.riskLevel,
-          department: data.role.department,
-        };
-        onSubmit(role);
+      if (data.success) {
+        // Check if we have enhanced parsed data (new format)
+        if (data.parsedRole && data.quality) {
+          // Create a Role object for backward compatibility
+          const role: Role = {
+            id: `custom-${Date.now()}`,
+            name: data.parsedRole.roleName,
+            description: data.parsedRole.roleSummary,
+            tasks: data.parsedRole.tasks.map((t: { description: string }) => t.description),
+            riskLevel: data.parsedRole.overallRiskLevel,
+            department: data.parsedRole.department || "Custom",
+          };
+          
+          // If onParsed callback is provided, use the new review flow
+          if (onParsed) {
+            onParsed(role, data.parsedRole, data.quality, jobDescription);
+          } else {
+            // Fallback to direct submit
+            onSubmit(role);
+          }
+        } else if (data.role) {
+          // Legacy format
+          const role: Role = {
+            id: `custom-${Date.now()}`,
+            name: data.role.name,
+            description: data.role.description,
+            tasks: data.role.tasks,
+            riskLevel: data.role.riskLevel,
+            department: data.role.department,
+          };
+          onSubmit(role);
+        }
       }
     } catch (err) {
       console.error("Error parsing job description:", err);
