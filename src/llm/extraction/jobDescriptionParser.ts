@@ -271,7 +271,7 @@ export async function parseJobDescriptionWithLLM(jobDescription: string): Promis
     },
   ];
 
-  const response = await client.chat(messages);
+  const response = await client.chat(messages, { max_tokens: 10000 });
   return parseLLMResponse(response.choices[0]?.message.content || '');
 }
 
