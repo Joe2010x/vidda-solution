@@ -12,8 +12,9 @@ import {
   ParsedJobDescription,
   JDQualityMetrics,
 } from "@/types";
+import { EnhancedRetrievalResult, TaskRequirementMapping } from "@/types/retrieval";
 import { roles } from "@/data/roles";
-import { retrieveRequirementsRuleBased as retrieveRequirements, getCompetencyNeeds } from "@/llm/retrieval";
+import { retrieveRequirementsRuleBased as retrieveRequirements, retrieveRequirementsEnhanced, getCompetencyNeeds, checkCoverage } from "@/llm/retrieval";
 import { generateTrainingPlanRuleBased as generateTrainingPlan } from "@/llm/generation";
 import { calculateValidationScoreRuleBased as calculateValidationScore } from "@/llm/validation";
 import type {
@@ -26,6 +27,7 @@ import RoleSelector from "@/components/RoleSelector";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
 import JdReviewEditor from "@/components/JdReviewEditor";
 import RiskMappingReview from "@/components/RiskMappingReview";
+import RequirementsReview from "@/components/RequirementsReview";
 import TrainingPlanComponent from "@/components/TrainingPlan";
 import ValidationScoreComponent from "@/components/ValidationScore";
 import HumanReviewComponent from "@/components/HumanReview";
@@ -76,6 +78,11 @@ export default function Home() {
   // Risk Mapping Review state
   const [showRiskMappingReview, setShowRiskMappingReview] = useState(false);
 
+  // Requirements Review state (after retrieval)
+  const [showRequirementsReview, setShowRequirementsReview] = useState(false);
+  const [retrievalResult, setRetrievalResult] = useState<EnhancedRetrievalResult | null>(null);
+  const [approvedMappings, setApprovedMappings] = useState<TaskRequirementMapping[] | null>(null);
+
   // Handle JD parsing complete - shows review screen
   const handleJdParsed = (role: Role, parsedData: ParsedJobDescription, quality: JDQualityMetrics, originalText: string) => {
     setSelectedRole(role);
@@ -96,7 +103,7 @@ export default function Home() {
     setShowRiskMappingReview(true);
   };
 
-  // Handle Risk Mapping Review approval - continues to training plan generation
+  // Handle Risk Mapping Review approval - triggers requirements retrieval
   const handleRiskMappingApproved = async (approvedMappings: any[]) => {
     setShowRiskMappingReview(false);
     setParsedJobDescription(null);
@@ -113,14 +120,45 @@ export default function Home() {
       department: parsedJobDescription.department || "Custom",
     };
     
-    // Continue with the pipeline
-    await processRoleThroughPipeline(role);
+    // Run enhanced retrieval and show Requirements Review
+    const result = retrieveRequirementsEnhanced(role);
+    setRetrievalResult(result);
+    setShowRequirementsReview(true);
   };
 
   // Handle Risk Mapping Review rejection
   const handleRiskMappingRejected = () => {
     setShowRiskMappingReview(false);
     setShowJdReview(true);
+  };
+
+  // Handle Requirements Review approval - continues to training plan generation
+  const handleRequirementsReviewApproved = async (finalMappings: TaskRequirementMapping[]) => {
+    setShowRequirementsReview(false);
+    setApprovedMappings(finalMappings);
+    setRetrievalResult(null);
+    
+    if (!parsedJobDescription) return;
+    
+    // Convert approved ParsedJobDescription to Role for pipeline
+    const role: Role = {
+      id: `custom-${Date.now()}`,
+      name: parsedJobDescription.roleName,
+      description: parsedJobDescription.roleSummary,
+      tasks: parsedJobDescription.tasks.map(t => t.description),
+      riskLevel: parsedJobDescription.overallRiskLevel,
+      department: parsedJobDescription.department || "Custom",
+    };
+    
+    // Continue with the pipeline using approved mappings
+    await processRoleThroughPipeline(role, finalMappings);
+  };
+
+  // Handle Requirements Review rejection - go back to Risk Mapping
+  const handleRequirementsReviewRejected = () => {
+    setShowRequirementsReview(false);
+    setRetrievalResult(null);
+    setShowRiskMappingReview(true);
   };
 
   // Handle JD review rejection
@@ -141,7 +179,7 @@ export default function Home() {
   };
 
   // Process role through the full pipeline (after JD review approval or direct selection)
-  const processRoleThroughPipeline = async (role: Role) => {
+  const processRoleThroughPipeline = async (role: Role, mappings?: TaskRequirementMapping[]) => {
     setSelectedRole(role);
     setCurrentStep(1);
     setLlmError(null);
@@ -754,6 +792,16 @@ export default function Home() {
                 jdReviewId={jdReviewId}
                 onApprove={handleRiskMappingApproved}
                 onReject={handleRiskMappingRejected}
+              />
+            )}
+
+            {/* Requirements Review (Human-in-the-loop after retrieval) */}
+            {showRequirementsReview && retrievalResult && (
+              <RequirementsReview
+                retrievalResult={retrievalResult}
+                jdReviewId={jdReviewId}
+                onApprove={handleRequirementsReviewApproved}
+                onReject={handleRequirementsReviewRejected}
               />
             )}
 
