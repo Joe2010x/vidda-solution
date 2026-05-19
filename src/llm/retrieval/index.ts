@@ -12,4 +12,9 @@ export {
   getCompetencyStats,
 } from './competencyNormalizer';
 
+export {
+  clusterCompetencies,
+  getClusterStats,
+} from './competencyClusterer';
+
 export { retrieveRequirementsWithLLM } from './requirementsWithLLM';

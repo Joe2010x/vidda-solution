@@ -235,3 +235,43 @@ export interface CoverageCheck {
   
   recommendations: string[];
 }
+
+/**
+ * Competency Cluster - groups related competencies for training module generation
+ * Clusters competencies by task + requirement + category to avoid generating too many modules
+ */
+export interface CompetencyCluster {
+  /** Unique identifier: e.g., "sar-reporting" */
+  groupId: string;
+  
+  /** Display title for the cluster */
+  title: string;
+  
+  /** Source task IDs that contribute to this cluster */
+  linkedTaskIds: string[];
+  
+  /** Primary linked business requirement */
+  primaryRequirement: string;
+  
+  /** Supporting requirements */
+  supportingRequirements: string[];
+  
+  /** Risk level (highest from contributing tasks) */
+  riskLevel: 'low' | 'medium' | 'high';
+  
+  /** Priority level */
+  priority: PriorityLevel;
+  
+  /** Grouped competencies by category */
+  competencies: {
+    knowledge: string[];
+    skills: string[];
+    judgement: string[];
+  };
+  
+  /** Linked regulatory articles */
+  linkedRegulatoryBasis: string[];
+  
+  /** Whether human review is required */
+  humanReviewRequired: boolean;
+}
