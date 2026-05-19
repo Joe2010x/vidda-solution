@@ -604,12 +604,23 @@ export default function Home() {
   const pipelineSteps = [
     "Select Role",
     "Extract Tasks",
-    "Map Risks",
-    "Retrieve Requirements",
+    "JD Review",
+    "Risk Mapping",
+    "Risk Review",
+    "Requirements",
+    "Req Review",
     "Generate Plan",
     "Validate",
     "Human Review",
   ];
+
+  // Update current step based on which review is showing
+  const getCurrentStep = () => {
+    if (showJdReview) return 2;
+    if (showRiskMappingReview) return 4;
+    if (showRequirementsReview) return 6;
+    return currentStep;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -671,7 +682,7 @@ export default function Home() {
               >
                 <div
                   className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${
-                    idx <= currentStep
+                    idx <= getCurrentStep()
                       ? "bg-blue-600 text-white"
                       : "bg-gray-200 text-gray-500"
                   }`}
@@ -680,7 +691,7 @@ export default function Home() {
                 </div>
                 <span
                   className={`ml-2 text-xs hidden md:inline ${
-                    idx <= currentStep
+                    idx <= getCurrentStep()
                       ? "text-gray-800 font-medium"
                       : "text-gray-400"
                   }`}
@@ -690,7 +701,7 @@ export default function Home() {
                 {idx < pipelineSteps.length - 1 && (
                   <div
                     className={`flex-1 h-1 mx-2 ${
-                      idx < currentStep ? "bg-blue-600" : "bg-gray-200"
+                      idx < getCurrentStep() ? "bg-blue-600" : "bg-gray-200"
                     }`}
                   />
                 )}
