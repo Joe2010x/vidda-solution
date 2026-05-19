@@ -25,6 +25,7 @@ import type { EnrichmentResult } from "@/types/rag";
 import RoleSelector from "@/components/RoleSelector";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
 import JdReviewEditor from "@/components/JdReviewEditor";
+import RiskMappingReview from "@/components/RiskMappingReview";
 import TrainingPlanComponent from "@/components/TrainingPlan";
 import ValidationScoreComponent from "@/components/ValidationScore";
 import HumanReviewComponent from "@/components/HumanReview";
@@ -63,13 +64,17 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState(0);
 
   // Input mode: 'select' for predefined roles, 'custom' for job description input
-  const [inputMode, setInputMode] = useState<'select' | 'custom'>('select');
+  const [inputMode, setInputMode] = useState<'select' | 'custom'>('custom');
 
   // JD Review state (for human-in-the-loop after JD parsing)
   const [parsedJobDescription, setParsedJobDescription] = useState<ParsedJobDescription | null>(null);
   const [jdQualityMetrics, setJdQualityMetrics] = useState<JDQualityMetrics | null>(null);
   const [originalJobDescriptionText, setOriginalJobDescriptionText] = useState<string>("");
   const [showJdReview, setShowJdReview] = useState(false);
+  const [jdReviewId, setJdReviewId] = useState<string>("");
+
+  // Risk Mapping Review state
+  const [showRiskMappingReview, setShowRiskMappingReview] = useState(false);
 
   // Handle JD parsing complete - shows review screen
   const handleJdParsed = (role: Role, parsedData: ParsedJobDescription, quality: JDQualityMetrics, originalText: string) => {
@@ -83,23 +88,39 @@ export default function Home() {
     setLlmStatus(null);
   };
 
-  // Handle JD review approval - continues to training plan generation
-  const handleJdReviewApproved = async (approvedRole: ParsedJobDescription) => {
+  // Handle JD review approval - shows Risk Mapping Review
+  const handleJdReviewApproved = (approvedRole: ParsedJobDescription) => {
     setShowJdReview(false);
+    setParsedJobDescription(approvedRole); // Keep for Risk Mapping Review
+    setJdReviewId(`jd-review-${Date.now()}`);
+    setShowRiskMappingReview(true);
+  };
+
+  // Handle Risk Mapping Review approval - continues to training plan generation
+  const handleRiskMappingApproved = async (approvedMappings: any[]) => {
+    setShowRiskMappingReview(false);
     setParsedJobDescription(null);
+    
+    if (!parsedJobDescription) return;
     
     // Convert approved ParsedJobDescription to Role for pipeline
     const role: Role = {
       id: `custom-${Date.now()}`,
-      name: approvedRole.roleName,
-      description: approvedRole.roleSummary,
-      tasks: approvedRole.tasks.map(t => t.description),
-      riskLevel: approvedRole.overallRiskLevel,
-      department: approvedRole.department || "Custom",
+      name: parsedJobDescription.roleName,
+      description: parsedJobDescription.roleSummary,
+      tasks: parsedJobDescription.tasks.map(t => t.description),
+      riskLevel: parsedJobDescription.overallRiskLevel,
+      department: parsedJobDescription.department || "Custom",
     };
     
     // Continue with the pipeline
     await processRoleThroughPipeline(role);
+  };
+
+  // Handle Risk Mapping Review rejection
+  const handleRiskMappingRejected = () => {
+    setShowRiskMappingReview(false);
+    setShowJdReview(true);
   };
 
   // Handle JD review rejection
@@ -723,6 +744,16 @@ export default function Home() {
                 onApprove={handleJdReviewApproved}
                 onReject={handleJdReviewRejected}
                 onReparsed={handleJdReparsed}
+              />
+            )}
+
+            {/* Risk Mapping Review (Human-in-the-loop after JD approval) */}
+            {showRiskMappingReview && parsedJobDescription && (
+              <RiskMappingReview
+                parsedRole={parsedJobDescription}
+                jdReviewId={jdReviewId}
+                onApprove={handleRiskMappingApproved}
+                onReject={handleRiskMappingRejected}
               />
             )}
 
