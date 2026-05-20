@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Role,
   AMLRRequirement,
@@ -17,6 +17,8 @@ import { EnhancedTrainingPlan } from "@/types/training";
 import { roles } from "@/data/roles";
 import { retrieveRequirementsRuleBased as retrieveRequirements, retrieveRequirementsEnhanced, getCompetencyNeeds, checkCoverage, normalizeCompetencies } from "@/llm/retrieval";
 import { generateTrainingPlanRuleBased as generateTrainingPlan, generateEnhancedTrainingPlan } from "@/llm/generation";
+import { AuditTrailBuilder } from "@/llm/audit";
+import type { AuditChange } from "@/types/audit";
 import { calculateValidationScoreRuleBased as calculateValidationScore } from "@/llm/validation";
 import type {
   RiskAnalysisResult,
@@ -93,6 +95,9 @@ export default function Home() {
   // Enhanced training plan (competency-driven, Q1-Q4 organized)
   const [enhancedTrainingPlan, setEnhancedTrainingPlan] = useState<EnhancedTrainingPlan | null>(null);
 
+  // Audit trail builder — persists across the full review pipeline so human review entries are captured
+  const auditBuilderRef = useRef<AuditTrailBuilder | null>(null);
+
   // JSON modal state for component data viewing
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [currentJsonData, setCurrentJsonData] = useState<any>(null);
@@ -108,6 +113,30 @@ export default function Home() {
     setCurrentStep(1);
     setIsLLMProcessing(false);
     setLlmStatus(null);
+
+    // Start a fresh audit trail for this pipeline run
+    const builder = new AuditTrailBuilder();
+    auditBuilderRef.current = builder;
+    builder.addEntry(
+      'jd_input',
+      'created',
+      { textLength: originalText.length },
+      { roleName: parsedData.roleName, taskCount: parsedData.tasks.length },
+      { aiProcessing: { model: 'system', confidence: 1.0, reasoning: 'Job description submitted for processing' } }
+    );
+    builder.addEntry(
+      'jd_parsing',
+      'created',
+      { textLength: originalText.length },
+      { roleName: parsedData.roleName, taskCount: parsedData.tasks.length, qualityConfidence: quality.confidence },
+      {
+        aiProcessing: {
+          model: 'LLM-parser',
+          confidence: quality.confidence,
+          reasoning: `Parsed JD for role: ${parsedData.roleName} with ${parsedData.tasks.length} tasks`,
+        },
+      }
+    );
   };
 
   // Handle JD review approval - shows Risk Mapping Review
@@ -116,6 +145,35 @@ export default function Home() {
     setParsedJobDescription(approvedRole); // Keep for Risk Mapping Review
     setJdReviewId(`jd-review-${Date.now()}`);
     setShowRiskMappingReview(true);
+
+    // Record JD review in audit trail, capturing any changes the reviewer made
+    const ts = new Date().toISOString();
+    const jdChanges: AuditChange[] = [];
+    if (parsedJobDescription) {
+      if (approvedRole.roleName !== parsedJobDescription.roleName)
+        jdChanges.push({ field: 'roleName', oldValue: parsedJobDescription.roleName, newValue: approvedRole.roleName, reason: 'Reviewer correction', changedBy: 'compliance-reviewer', timestamp: ts });
+      if (approvedRole.department !== parsedJobDescription.department)
+        jdChanges.push({ field: 'department', oldValue: parsedJobDescription.department ?? null, newValue: approvedRole.department ?? null, reason: 'Reviewer correction', changedBy: 'compliance-reviewer', timestamp: ts });
+      if (approvedRole.overallRiskLevel !== parsedJobDescription.overallRiskLevel)
+        jdChanges.push({ field: 'overallRiskLevel', oldValue: parsedJobDescription.overallRiskLevel, newValue: approvedRole.overallRiskLevel, reason: 'Risk level corrected by reviewer', changedBy: 'compliance-reviewer', timestamp: ts });
+      if (approvedRole.tasks.length !== parsedJobDescription.tasks.length)
+        jdChanges.push({ field: 'taskCount', oldValue: parsedJobDescription.tasks.length, newValue: approvedRole.tasks.length, reason: 'Tasks modified during review', changedBy: 'compliance-reviewer', timestamp: ts });
+    }
+    auditBuilderRef.current?.addEntry(
+      'jd_review',
+      jdChanges.length > 0 ? 'modified' : 'approved',
+      { parsedRoleName: parsedJobDescription?.roleName, parsedTaskCount: parsedJobDescription?.tasks.length },
+      { approvedRoleName: approvedRole.roleName, approvedTaskCount: approvedRole.tasks.length },
+      {
+        humanReview: {
+          reviewerId: 'compliance-reviewer',
+          reviewerName: 'Compliance Reviewer',
+          status: 'approved',
+          comment: jdChanges.length > 0 ? `Approved with ${jdChanges.length} modification(s)` : 'Approved without changes',
+          changes: jdChanges,
+        },
+      }
+    );
   };
 
   // Handle Risk Mapping Review approval - triggers requirements retrieval
@@ -141,6 +199,23 @@ export default function Home() {
     const result = retrieveRequirementsEnhanced(role);
     setRetrievalResult(result);
     setShowRequirementsReview(true);
+
+    // Record risk mapping review approval
+    auditBuilderRef.current?.addEntry(
+      'risk_mapping',
+      'approved',
+      { taskCount: parsedJobDescription.tasks.length },
+      { approvedMappingCount: approvedMappings.length },
+      {
+        humanReview: {
+          reviewerId: 'compliance-reviewer',
+          reviewerName: 'Compliance Reviewer',
+          status: 'approved',
+          comment: `Risk mapping approved: ${approvedMappings.length} mapping(s) confirmed`,
+          changes: [],
+        },
+      }
+    );
   };
 
   // Handle Risk Mapping Review rejection
@@ -161,6 +236,23 @@ export default function Home() {
     
     // Show Competency Review
     setShowCompetencyReview(true);
+
+    // Record requirements review approval
+    auditBuilderRef.current?.addEntry(
+      'risk_review',
+      'approved',
+      { mappingCount: finalMappings.length },
+      { approvedMappingCount: finalMappings.length, normalizedCompetencyCount: normalized.length },
+      {
+        humanReview: {
+          reviewerId: 'compliance-reviewer',
+          reviewerName: 'Compliance Reviewer',
+          status: 'approved',
+          comment: `Requirements review approved: ${finalMappings.length} mapping(s), ${normalized.length} competencies extracted`,
+          changes: [],
+        },
+      }
+    );
   };
 
   // Handle Requirements Review rejection - go back to Risk Mapping
@@ -202,7 +294,7 @@ export default function Home() {
       // Generate enhanced training plan from normalized competencies
       // This creates modules with full traceability (linkedTaskIds, linkedCompetencyIds, whyIncluded)
       // and organizes them by Q1-Q4 quarters
-      const enhancedPlan = generateEnhancedTrainingPlan(role, normalizedCompetencies);
+      const enhancedPlan = generateEnhancedTrainingPlan(role, normalizedCompetencies, auditBuilderRef.current ?? undefined);
 
       // Store the full enhanced plan for the Q1-Q4 view
       setEnhancedTrainingPlan(enhancedPlan);

@@ -557,50 +557,54 @@ export function clusterToModule(
  */
 export function generateEnhancedTrainingPlan(
   role: Role,
-  normalizedCompetencies: NormalizedCompetency[]
+  normalizedCompetencies: NormalizedCompetency[],
+  externalAuditBuilder?: AuditTrailBuilder
 ): EnhancedTrainingPlan {
-  // Initialize audit trail builder
-  const auditBuilder = new AuditTrailBuilder();
-  
-  // Stage 1: Input competencies
-  auditBuilder.addEntry(
-    'jd_parsing',
-    'created',
-    { roleId: role.id, roleName: role.name, competencyCount: normalizedCompetencies.length },
-    { normalizedCompetencies: normalizedCompetencies.slice(0, 5) }, // Sample for audit
-    {
-      aiProcessing: {
-        model: 'rule-based',
-        confidence: 1.0,
-        reasoning: `Parsed ${normalizedCompetencies.length} competencies from job description for role: ${role.name}`,
-      },
-    }
-  );
-  
+  // Use provided builder (carries human review history) or create a fresh standalone one
+  const auditBuilder = externalAuditBuilder ?? new AuditTrailBuilder();
+
+  if (!externalAuditBuilder) {
+    // Standalone mode: record technical pipeline stages (page.tsx handles these when running the full UI)
+    auditBuilder.addEntry(
+      'jd_parsing',
+      'created',
+      { roleId: role.id, roleName: role.name, competencyCount: normalizedCompetencies.length },
+      { normalizedCompetencies: normalizedCompetencies.slice(0, 5) },
+      {
+        aiProcessing: {
+          model: 'rule-based',
+          confidence: 1.0,
+          reasoning: `Parsed ${normalizedCompetencies.length} competencies from job description for role: ${role.name}`,
+        },
+      }
+    );
+  }
+
   // Cluster competencies
   const clusters = clusterCompetencies(normalizedCompetencies);
-  
-  // Stage 2: Clustering
-  auditBuilder.addEntry(
-    'risk_mapping',
-    'created',
-    { normalizedCompetencies: normalizedCompetencies.length },
-    { clusterCount: clusters.length, clusters: clusters.slice(0, 3).map(c => ({ id: c.groupId, title: c.title })) },
-    {
-      aiProcessing: {
-        model: 'rule-based-clustering',
-        confidence: 0.95,
-        reasoning: `Grouped ${normalizedCompetencies.length} competencies into ${clusters.length} clusters`,
-      },
-    }
-  );
-  
+
+  if (!externalAuditBuilder) {
+    auditBuilder.addEntry(
+      'risk_mapping',
+      'created',
+      { normalizedCompetencies: normalizedCompetencies.length },
+      { clusterCount: clusters.length, clusters: clusters.slice(0, 3).map(c => ({ id: c.groupId, title: c.title })) },
+      {
+        aiProcessing: {
+          model: 'rule-based-clustering',
+          confidence: 0.95,
+          reasoning: `Grouped ${normalizedCompetencies.length} competencies into ${clusters.length} clusters`,
+        },
+      }
+    );
+  }
+
   // Convert clusters to modules
   const modules = clusters.map((cluster, index) => 
     clusterToModule(cluster, role.name, index + 1)
   );
-  
-  // Stage 3: Module generation
+
+  // Training generation stage
   auditBuilder.addEntry(
     'training_generation',
     'created',
@@ -620,8 +624,8 @@ export function generateEnhancedTrainingPlan(
       },
     }
   );
-  
-  // Add traceability links
+
+  // Traceability links
   auditBuilder.addTraceabilityLink('jd_parsing', 'initial', 'risk_mapping', clusters[0]?.groupId || '', 'derived_from', 0.95);
   auditBuilder.addTraceabilityLink('risk_mapping', clusters[0]?.groupId || '', 'training_generation', modules[0]?.moduleId || '', 'derived_from', 0.92);
   

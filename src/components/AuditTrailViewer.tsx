@@ -103,25 +103,18 @@ export const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({ auditTrail }
       )}
 
       {/* Integrity Check */}
-      <div className={`mb-4 p-3 rounded-md ${
-        auditTrail.integrityCheck.allHashesValid 
-          ? 'bg-green-50 text-green-800' 
-          : 'bg-red-50 text-red-800'
-      }`}>
-        <div className="font-medium text-sm">
-          Data Integrity: {auditTrail.integrityCheck.allHashesValid ? '✓ Valid' : '✗ Issues Detected'}
+      {(!auditTrail.integrityCheck.allHashesValid || auditTrail.integrityCheck.brokenLinks.length > 0) && (
+        <div className="mb-4 p-3 rounded-md bg-red-50 text-red-800">
+          <div className="font-medium text-sm">
+            Data Integrity: ✗ Issues Detected
+          </div>
+          {auditTrail.integrityCheck.brokenLinks.length > 0 && (
+            <div className="text-xs mt-1">
+              Broken Links: {auditTrail.integrityCheck.brokenLinks.length}
+            </div>
+          )}
         </div>
-        {auditTrail.integrityCheck.brokenLinks.length > 0 && (
-          <div className="text-xs mt-1">
-            Broken Links: {auditTrail.integrityCheck.brokenLinks.length}
-          </div>
-        )}
-        {auditTrail.integrityCheck.missingStages.length > 0 && (
-          <div className="text-xs mt-1">
-            Missing Stages: {auditTrail.integrityCheck.missingStages.join(', ')}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Audit Entries */}
       <div className="space-y-2">
@@ -152,16 +145,16 @@ export const AuditTrailViewer: React.FC<AuditTrailViewerProps> = ({ auditTrail }
 
             {expandedEntries.has(entry.id) && (
               <div className="px-4 py-3 bg-white border-t">
-                {/* Input Reference */}
-                <div className="mb-3">
-                  <div className="text-xs font-medium text-gray-500 mb-1">Input:</div>
-                  <div className="text-sm">
-                    <div>From: {getStageLabel(entry.inputReference.sourceStage)}</div>
-                    <div>Hash: <code className="bg-gray-100 px-1 rounded text-xs">{entry.inputReference.dataHash}</code></div>
+                {/* Input Reference — hidden for the first entry (no preceding stage) */}
+                {entry.inputReference.sourceEntryId !== 'initial' && (
+                  <div className="mb-3">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Input:</div>
+                    <div className="text-sm">
+                      <div>From: {getStageLabel(entry.inputReference.sourceStage)}</div>
+                      <div>Hash: <code className="bg-gray-100 px-1 rounded text-xs">{entry.inputReference.dataHash}</code></div>
+                    </div>
                   </div>
-                </div>
-
-                {/* Output Reference */}
+                )}
                 <div className="mb-3">
                   <div className="text-xs font-medium text-gray-500 mb-1">Output:</div>
                   <div className="text-sm">
