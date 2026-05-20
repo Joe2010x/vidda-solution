@@ -163,11 +163,11 @@ export default function Home() {
     setShowRiskMappingReview(true);
   };
 
-  // Handle Competency Review approval - continues to training plan generation
+  // Handle Competency Review approval - generates training plan from approved competencies
   const handleCompetencyReviewApproved = async () => {
     setShowCompetencyReview(false);
     
-    if (!parsedJobDescription || !approvedMappings) return;
+    if (!parsedJobDescription || !approvedMappings || normalizedCompetencies.length === 0) return;
     
     // Convert approved ParsedJobDescription to Role for pipeline
     const role: Role = {
@@ -179,8 +179,40 @@ export default function Home() {
       department: parsedJobDescription.department || "Custom",
     };
     
-    // Continue with the pipeline using approved mappings
-    await processRoleThroughPipeline(role, approvedMappings);
+    setSelectedRole(role);
+    setExtractedTasks(role.tasks);
+    
+    try {
+      // Use rule-based approach since we already have the mappings
+      const { requirements, mappedRisks: risks } = retrieveRequirements(role);
+      setMappedRisks(risks);
+      setRetrievedRequirements(requirements);
+      setCurrentStep(2);
+
+      // Use the normalized competencies we already have
+      setCurrentStep(3);
+
+      // Generate training plan from the approved mappings
+      const plan = generateTrainingPlan(role, requirements);
+      setTrainingPlan(plan);
+      setCurrentStep(4);
+
+      // Calculate validation score
+      const score = calculateValidationScore(role, requirements, plan, risks);
+      setValidationScore(score);
+      setCurrentStep(5);
+
+      // Initialize review status
+      setReviewStatus({
+        status: "pending",
+        comments: [],
+        lastUpdated: new Date().toISOString(),
+      });
+      setCurrentStep(6);
+    } catch (error) {
+      console.error('Training plan generation error:', error);
+      setLlmError(error instanceof Error ? error.message : 'An error occurred during training plan generation');
+    }
   };
 
   // Handle Competency Review rejection - go back to Requirements
