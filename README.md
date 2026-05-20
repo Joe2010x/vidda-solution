@@ -386,4 +386,4 @@ For technical support or questions:
 
 ---
 
-**Vidda Solutions** - Compliance Training Generator MVP | Built for Hackathon 2024
+**Vidda Solutions** - Compliance Training Generator MVP | Built for Hackathon 2026
