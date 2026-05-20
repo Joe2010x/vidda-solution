@@ -22,11 +22,12 @@ Vidda Solutions helps organizations generate customized compliance training plan
 
 - **Full Traceability**: Each training module links back to specific tasks, competencies, and regulatory requirements
 - **Explainability**: `whyIncluded` field explains why each module is assigned to the training plan
-- **Quarterly Organization**: Modules organized by Q1-Q4 based on competency type:
-  - **Q1 (Foundation)**: Knowledge-dominant competencies
-  - **Q2 (Application)**: Skills-dominant competencies
-  - **Q3 (Deepening)**: Judgement-dominant competencies
-  - **Q4 (Embedding)**: Assessment and validation modules
+- **Activity-Level Q1-Q4 Organization**: Each module is broken down into learning activities distributed across quarters:
+  - **Q1 (Foundation)**: Knowledge-based activities (regulatory frameworks, policies, procedures)
+  - **Q2 (Application)**: Skills-based activities (practical exercises, workshops)
+  - **Q3 (Deepening)**: Judgement-based activities (scenario labs, decision-making practice)
+  - **Q4 (Embedding)**: Assessment activities (QA review, coaching, competency validation)
+- **Smart Quarter Assignment**: Competencies with keywords like "coach", "review", "feedback", "assessment", "audit", "QA" are automatically assigned to Q4
 - **Quality Scoring**: Comprehensive quality metrics including risk coverage, competency coverage, and regulatory traceability
 - **Enhanced Priority Calculation**: Priority scoring based on task risk level + competency type
 
@@ -181,6 +182,7 @@ NerveHackathon/
 ├── .env.example                   # Environment variables template
 ├── RAG_INTEGRATION.md             # Detailed RAG subsystem specification
 ├── LLM_INTEGRATION.md             # LLM integration guide
+├── ACTIVITY_LEVEL_IMPLEMENTATION.md  # Activity-level Q1-Q4 training plan documentation
 └── README.md                      # This file
 ```
 
@@ -306,8 +308,22 @@ The enhanced training plan generator follows a multi-stage pipeline:
 4. **Competency Normalization**: Extract and normalize competencies from requirements
 5. **Competency Clustering**: Group related competencies to avoid module proliferation
 6. **Module Generation**: Create training modules with full traceability
-7. **Quarterly Organization**: Assign modules to Q1-Q4 based on competency type
-8. **Quality Scoring**: Calculate coverage and traceability metrics
+7. **Activity Breakdown**: Split each module into learning activities across Q1-Q4
+8. **Smart Quarter Assignment**: Assign activities based on competency category and keywords
+9. **Quality Scoring**: Calculate coverage and traceability metrics
+
+### Activity-Level Organization
+
+Each training module is broken down into granular learning activities:
+
+- **Knowledge competencies** → Q1 Foundation activities
+- **Skills competencies** → Q2 Application activities  
+- **Judgement competencies** → Q3 Deepening activities
+- **Q4-type competencies** (containing keywords: coach, review, feedback, assessment, audit, QA, sign-off, junior, mentoring) → Q4 Embedding activities
+
+Modules appear in all quarters where they have activities, ensuring complete Q1-Q4 coverage.
+
+For detailed implementation information, see [ACTIVITY_LEVEL_IMPLEMENTATION.md](./ACTIVITY_LEVEL_IMPLEMENTATION.md).
 
 ### Output Structure
 
