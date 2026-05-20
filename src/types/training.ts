@@ -86,6 +86,91 @@ export interface EnhancedTrainingModule {
 }
 
 /**
+ * Training module for rule-based generation (simplified)
+ */
+export interface TrainingModuleItem {
+  moduleId: string;
+  title: string;
+  description: string;
+  
+  // Traceability
+  linkedTaskIds: string[];
+  linkedCompetencyIds: string[];
+  linkedRisks: string[];         // e.g. ["suspicious-activity", "reporting", "tipping-off"]
+  primaryRequirement: string;
+  regulatoryBasis: string[];
+  
+  // Competency coverage
+  competencyCategoriesCovered: CompetencyType[];
+
+  // Full competency text grouped by category (K / S / J)
+  linkedCompetenciesByCategory: {
+    knowledge: string[];
+    skills: string[];
+    judgement: string[];
+  };
+  
+  // Learning design
+  learningObjectives: string[];
+  assessmentMethod: AssessmentMethod;
+  
+  // Logistics
+  durationMinutes: number;
+  quarter: TrainingQuarter;
+  priority: 'low' | 'medium' | 'high';
+  priorityScore: number; // 1-10 scale
+  
+  // Explainability
+  whyIncluded: string;
+  
+  // Review
+  humanReviewRequired: boolean;
+  reviewReason?: string;
+}
+
+/**
+ * Quarterly training plan section
+ */
+export interface QuarterlySection {
+  quarter: TrainingQuarter;
+  title: string;
+  description: string;
+  modules: TrainingModuleItem[];
+}
+
+/**
+ * Enhanced training plan with quarterly organization
+ */
+export interface EnhancedTrainingPlan {
+  roleId: string;
+  roleName: string;
+  generatedAt: string;
+  
+  // Quarterly organization
+  quarters: QuarterlySection[];
+  
+  // Summary statistics
+  totalModules: number;
+  totalDurationMinutes: number;
+  
+  // Traceability
+  linkedTaskIds: string[];
+  linkedRequirementIds: string[];
+  linkedCompetencyIds: string[];
+  
+  // Quality metrics
+  qualityScore: {
+    riskCoverage: number;
+    competencyCoverage: number;
+    regulatoryTraceability: number;
+    overallScore: number;
+  };
+  
+  // Review status
+  humanReviewRequired: boolean;
+}
+
+/**
  * Competency coverage summary
  */
 export interface CompetencyCoverage {
@@ -127,38 +212,11 @@ export interface TrainingPlanQuality {
 }
 
 /**
- * Quarterly training plan structure
+ * Quarterly training plan structure (legacy)
  */
 export interface QuarterlyTrainingPlan {
   Q1: EnhancedTrainingModule[]; // Foundation
   Q2: EnhancedTrainingModule[]; // Application
   Q3: EnhancedTrainingModule[]; // Deepening
   Q4: EnhancedTrainingModule[]; // Embedding
-}
-
-/**
- * Enhanced training plan with full traceability
- */
-export interface EnhancedTrainingPlan {
-  roleId: string;
-  roleName: string;
-  generatedAt: string;
-  
-  // Quarterly organization
-  quarterlyPlan: QuarterlyTrainingPlan;
-  
-  // Summary statistics
-  totalModules: number;
-  totalDurationMinutes: number;
-  
-  // Traceability
-  linkedTasks: string[];
-  linkedRisks: string[];
-  competencyNeedsAddressed: string[];
-  
-  // Quality metrics
-  quality: TrainingPlanQuality;
-  
-  // Review status
-  humanReviewStatus: HumanReviewStatus;
 }

@@ -1,4 +1,10 @@
-export { generateTrainingPlanRuleBased, getTrainingPlanSummary } from './ruleBased';
+export { 
+  generateTrainingPlanRuleBased, 
+  generateEnhancedTrainingPlan,
+  getTrainingPlanSummary,
+  clusterToModule,
+  calculateQualityScore,
+} from './ruleBased';
 
 export {
   generateTrainingPlanWithLLM,

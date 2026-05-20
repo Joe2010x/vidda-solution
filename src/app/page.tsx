@@ -13,9 +13,10 @@ import {
   JDQualityMetrics,
 } from "@/types";
 import { EnhancedRetrievalResult, TaskRequirementMapping, NormalizedCompetency } from "@/types/retrieval";
+import { EnhancedTrainingPlan } from "@/types/training";
 import { roles } from "@/data/roles";
 import { retrieveRequirementsRuleBased as retrieveRequirements, retrieveRequirementsEnhanced, getCompetencyNeeds, checkCoverage, normalizeCompetencies } from "@/llm/retrieval";
-import { generateTrainingPlanRuleBased as generateTrainingPlan } from "@/llm/generation";
+import { generateTrainingPlanRuleBased as generateTrainingPlan, generateEnhancedTrainingPlan } from "@/llm/generation";
 import { calculateValidationScoreRuleBased as calculateValidationScore } from "@/llm/validation";
 import type {
   RiskAnalysisResult,
@@ -88,6 +89,9 @@ export default function Home() {
   const [showCompetencyReview, setShowCompetencyReview] = useState(false);
   const [normalizedCompetencies, setNormalizedCompetencies] = useState<NormalizedCompetency[]>([]);
 
+  // Enhanced training plan (competency-driven, Q1-Q4 organized)
+  const [enhancedTrainingPlan, setEnhancedTrainingPlan] = useState<EnhancedTrainingPlan | null>(null);
+
   // JSON modal state for component data viewing
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [currentJsonData, setCurrentJsonData] = useState<any>(null);
@@ -116,10 +120,9 @@ export default function Home() {
   // Handle Risk Mapping Review approval - triggers requirements retrieval
   const handleRiskMappingApproved = async (approvedMappings: any[]) => {
     setShowRiskMappingReview(false);
-    setParsedJobDescription(null);
-    
+
     if (!parsedJobDescription) return;
-    
+
     // Convert approved ParsedJobDescription to Role for pipeline
     const role: Role = {
       id: `custom-${Date.now()}`,
@@ -129,7 +132,10 @@ export default function Home() {
       riskLevel: parsedJobDescription.overallRiskLevel,
       department: parsedJobDescription.department || "Custom",
     };
-    
+
+    // Keep selectedRole in sync so later steps can reference it
+    setSelectedRole(role);
+
     // Run enhanced retrieval and show Requirements Review
     const result = retrieveRequirementsEnhanced(role);
     setRetrievalResult(result);
@@ -192,8 +198,57 @@ export default function Home() {
       // Use the normalized competencies we already have
       setCurrentStep(3);
 
-      // Generate training plan from the approved mappings
-      const plan = generateTrainingPlan(role, requirements);
+      // Generate enhanced training plan from normalized competencies
+      // This creates modules with full traceability (linkedTaskIds, linkedCompetencyIds, whyIncluded)
+      // and organizes them by Q1-Q4 quarters
+      const enhancedPlan = generateEnhancedTrainingPlan(role, normalizedCompetencies);
+
+      // Store the full enhanced plan for the Q1-Q4 view
+      setEnhancedTrainingPlan(enhancedPlan);
+
+      // Populate competency needs from normalized competencies
+      setCompetencyNeeds(normalizedCompetencies.map(c => c.text));
+
+      // Convert EnhancedTrainingPlan to legacy TrainingPlan for backward compatibility
+      // The TrainingPlanComponent can work with either format
+      const plan: TrainingPlan = {
+        roleId: enhancedPlan.roleId,
+        roleName: enhancedPlan.roleName,
+        generatedAt: enhancedPlan.generatedAt,
+        items: enhancedPlan.quarters.flatMap(q => 
+          q.modules.map(m => ({
+            module: {
+              id: m.moduleId,
+              title: m.title,
+              type: m.competencyCategoriesCovered.includes('judgement') ? 'interactive' : 
+                     m.competencyCategoriesCovered.includes('skill') ? 'interactive' : 'video',
+              description: m.description,
+              duration: m.durationMinutes,
+              priority: m.priority,
+              competencyAreas: m.competencyCategoriesCovered.map(c => 
+                c === 'knowledge' ? 'Regulatory Knowledge' : 
+                c === 'skill' ? 'Practical Skills' : 'Professional Judgement'
+              ),
+            },
+            requirement: {
+              id: m.primaryRequirement,
+              title: m.primaryRequirement,
+              article: m.regulatoryBasis[0] || '',
+              description: m.description,
+              trainingModuleIds: [m.moduleId],
+              riskCategories: [],
+              competencyRequirements: m.competencyCategoriesCovered.map(c => 
+                c === 'knowledge' ? 'Regulatory Knowledge' : 
+                c === 'skill' ? 'Practical Skills' : 'Professional Judgement'
+              ),
+            },
+            priority: m.priorityScore,
+            estimatedDuration: m.durationMinutes,
+          }))
+        ),
+        totalDuration: enhancedPlan.totalDurationMinutes,
+      };
+      
       setTrainingPlan(plan);
       setCurrentStep(4);
 
@@ -943,6 +998,7 @@ export default function Home() {
               </div>
               <TrainingPlanComponent
                 trainingPlan={trainingPlan}
+                enhancedPlan={enhancedTrainingPlan}
                 mappedRisks={mappedRisks}
                 competencyNeeds={competencyNeeds}
                 enrichmentByRisk={enrichmentByRisk}

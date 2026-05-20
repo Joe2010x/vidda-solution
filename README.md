@@ -18,15 +18,28 @@ Vidda Solutions helps organizations generate customized compliance training plan
 - **Human Review Workflow**: Built-in review and approval process for training plans
 - **LMS Integration**: Generate assignments for Learning Management Systems
 
+### Enhanced Training Plan Generation
+
+- **Full Traceability**: Each training module links back to specific tasks, competencies, and regulatory requirements
+- **Explainability**: `whyIncluded` field explains why each module is assigned to the training plan
+- **Quarterly Organization**: Modules organized by Q1-Q4 based on competency type:
+  - **Q1 (Foundation)**: Knowledge-dominant competencies
+  - **Q2 (Application)**: Skills-dominant competencies
+  - **Q3 (Deepening)**: Judgement-dominant competencies
+  - **Q4 (Embedding)**: Assessment and validation modules
+- **Quality Scoring**: Comprehensive quality metrics including risk coverage, competency coverage, and regulatory traceability
+- **Enhanced Priority Calculation**: Priority scoring based on task risk level + competency type
+
 ### Key Components
 
 1. **Role Selector**: Choose from predefined roles with established risk profiles
 2. **Custom Job Description Input**: Enter any job description for AI analysis
 3. **Risk Analysis**: AI identifies relevant AML/CFT risk categories with confidence scores
-4. **Regulatory Basis Enrichment**: RAG-powered retrieval of relevant EU AML Regulation paragraphs with validated citations per risk category
-5. **Training Plan Generator**: Creates optimized training plans with learning objectives
-6. **Validation System**: Comprehensive quality assessment with scores and recommendations
-7. **Human Review**: Review, approve, reject, or request revisions for training plans
+4. **Requirements Review**: Review and approve mapped regulatory requirements
+5. **Competency Review**: Review normalized competencies with full traceability
+6. **Training Plan Generator**: Creates optimized training plans with learning objectives and quarterly organization
+7. **Validation System**: Comprehensive quality assessment with scores and recommendations
+8. **Human Review**: Review, approve, reject, or request revisions for training plans
 
 ## Getting Started
 
@@ -88,7 +101,9 @@ The `predev` hook runs `scripts/ensure_corpus.js` automatically. On first run it
    - Extract the job title and department
    - Identify key tasks and responsibilities
    - Assess the AML/CFT risk level
-   - Generate a customized training plan
+   - Map tasks to regulatory requirements
+   - Normalize competencies from the requirements
+   - Generate a customized training plan with quarterly organization
    - Enrich each identified risk category with EU AML Regulation citations
 
 ### Available Roles (Predefined)
@@ -124,36 +139,47 @@ NerveHackathon/
 │   │   ├── TrainingPlan.tsx       # Training plan display (with citation badges)
 │   │   ├── ValidationScore.tsx    # Validation scores display
 │   │   ├── HumanReview.tsx        # Review workflow component
+│   │   ├── CompetencyReview.tsx   # Competency review with traceability
+│   │   ├── RequirementsReview.tsx # Requirements mapping review
+│   │   ├── RiskMappingReview.tsx  # Risk mapping review
+│   │   ├── JdReviewEditor.tsx     # JD review editor
 │   │   └── LMSAssignment.tsx      # LMS assignment component
 │   ├── llm/                       # LLM integration — staged pipeline
 │   │   ├── index.ts               # Top-level barrel export
-│   │   ├── preparation/           # API client, JSON parser, response cache
 │   │   ├── extraction/            # Job description parsing, risk analysis, prompts
 │   │   ├── retrieval/             # Requirements retrieval (rule-based + LLM)
-│   │   ├── generation/            # Training plan generation (rule-based + LLM), prompts
-│   │   ├── post-processing/       # Output formatters
+│   │   │   ├── ruleBased.ts       # Rule-based retrieval
+│   │   │   ├── competencyNormalizer.ts  # Normalize competencies from mappings
+│   │   │   ├── competencyClusterer.ts   # Cluster competencies for module generation
+│   │   │   └── index.ts           # Barrel export
+│   │   ├── generation/            # Training plan generation
+│   │   │   ├── ruleBased.ts       # Enhanced rule-based generator with Q1-Q4 organization
+│   │   │   └── index.ts           # Barrel export
 │   │   ├── validation/            # Plan validation (rule-based + LLM), prompts
-│   │   ├── delivery/              # Per-endpoint handler functions (analyzeRisk, generatePlan,
-│   │   │                          #   validatePlan, parseJobDescription, enrichRisk)
+│   │   ├── delivery/              # Per-endpoint handler functions
 │   │   └── rag/                   # RAG subsystem
 │   │       ├── constants.ts       # BM25 params, RRF k, TOP_K, embedding model
-│   │       ├── tokenizer.ts       # Stopword-filtered tokenizer (must match build_corpus.js)
+│   │       ├── tokenizer.ts       # Stopword-filtered tokenizer
 │   │       ├── sparse.ts          # BM25 scoring
 │   │       ├── dense.ts           # Embedding + cosine similarity (cached)
-│   │       ├── corpus_registry.ts # Singleton — loads src/data/*_corpus.json at cold start
-│   │       ├── retriever.ts       # Hybrid retrieval: BM25 + dense → RRF → top-20 parents
-│   │       ├── prompts.ts         # Enrichment system prompt + numbered-clause builder
+│   │       ├── corpus_registry.ts # Singleton — loads src/data/*_corpus.json
+│   │       ├── retriever.ts       # Hybrid retrieval: BM25 + dense → RRF
+│   │       ├── prompts.ts         # Enrichment system prompt
 │   │       ├── validator.ts       # Citation normalization and hallucination rejection
 │   │       └── index.ts           # Barrel export
 │   ├── data/
 │   │   ├── roles.ts               # Predefined roles data
-│   │   ├── amirRequirements.ts    # Regulatory requirements
+│   │   ├── jdTemplates.ts         # Job description templates
+│   │   ├── amlrRequirements.ts    # Regulatory requirements and training modules
 │   │   └── AMLCFT_Regulation_corpus.json  # Generated — do not edit manually
 │   └── types/
-│       ├── index.ts               # TypeScript type definitions
-│       └── rag.ts                 # RAG types: ChildChunk, ParentChunk, Corpus, EnrichmentResult
+│       ├── index.ts               # Core TypeScript type definitions
+│       ├── retrieval.ts           # Retrieval types: NormalizedCompetency, CompetencyCluster
+│       ├── training.ts            # Training types: EnhancedTrainingPlan, TrainingModuleItem
+│       ├── audit.ts               # Audit trail types
+│       └── rag.ts                 # RAG types: ChildChunk, ParentChunk, Corpus
 ├── .env.example                   # Environment variables template
-├── RAG_INTEGRATION.md                  # Detailed RAG subsystem specification
+├── RAG_INTEGRATION.md             # Detailed RAG subsystem specification
 ├── LLM_INTEGRATION.md             # LLM integration guide
 └── README.md                      # This file
 ```
@@ -269,6 +295,51 @@ node scripts/build_corpus.js documents/AMLCFT_Regulation.json --dry-run
 ```
 
 The build is resumable — if interrupted, re-running continues from the last completed batch (via a `.partial.json` sidecar file).
+
+## Training Plan Generation Pipeline
+
+The enhanced training plan generator follows a multi-stage pipeline:
+
+1. **Task Extraction**: Parse job description to extract individual tasks
+2. **Risk Mapping**: Map each task to AML/CFT risk categories
+3. **Requirements Retrieval**: Retrieve relevant regulatory requirements for each risk
+4. **Competency Normalization**: Extract and normalize competencies from requirements
+5. **Competency Clustering**: Group related competencies to avoid module proliferation
+6. **Module Generation**: Create training modules with full traceability
+7. **Quarterly Organization**: Assign modules to Q1-Q4 based on competency type
+8. **Quality Scoring**: Calculate coverage and traceability metrics
+
+### Output Structure
+
+Each generated training plan includes:
+
+```typescript
+interface EnhancedTrainingPlan {
+  roleId: string;
+  roleName: string;
+  generatedAt: string;
+  
+  // Quarterly organization
+  quarters: QuarterlySection[];  // Q1-Q4 sections
+  
+  // Summary statistics
+  totalModules: number;
+  totalDurationMinutes: number;
+  
+  // Full traceability
+  linkedTaskIds: string[];
+  linkedRequirementIds: string[];
+  linkedCompetencyIds: string[];
+  
+  // Quality metrics
+  qualityScore: {
+    riskCoverage: number;        // % of high-risk tasks covered
+    competencyCoverage: number;  // % of competencies addressed
+    regulatoryTraceability: number; // % of modules with regulatory basis
+    overallScore: number;        // Weighted average (0-100)
+  };
+}
+```
 
 ## Development
 

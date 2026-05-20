@@ -3,9 +3,11 @@
 import { useState, useMemo } from "react";
 import { TrainingPlan, TrainingPlanItem } from "@/types";
 import type { EnrichmentResult } from "@/types/rag";
+import type { EnhancedTrainingPlan, TrainingModuleItem, QuarterlySection } from "@/types/training";
 
 interface TrainingPlanProps {
   trainingPlan: TrainingPlan | null;
+  enhancedPlan?: EnhancedTrainingPlan | null;
   mappedRisks: string[];
   competencyNeeds: string[];
   enrichmentByRisk?: Record<string, EnrichmentResult>;
@@ -14,6 +16,7 @@ interface TrainingPlanProps {
 
 export default function TrainingPlanComponent({
   trainingPlan,
+  enhancedPlan,
   mappedRisks,
   competencyNeeds,
   enrichmentByRisk = {},
@@ -21,6 +24,7 @@ export default function TrainingPlanComponent({
 }: TrainingPlanProps) {
   const [expandedRisk, setExpandedRisk] = useState<string | null>(null);
   const [openRiskCite, setOpenRiskCite] = useState<string | null>(null);
+  const [expandedQuarters, setExpandedQuarters] = useState<Set<string>>(new Set(['Q1', 'Q2']));
 
   const contextMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -32,7 +36,16 @@ export default function TrainingPlanComponent({
     return map;
   }, [enrichmentByRisk]);
 
-  if (!trainingPlan) {
+  const toggleQuarter = (quarter: string) => {
+    setExpandedQuarters(prev => {
+      const next = new Set(prev);
+      if (next.has(quarter)) next.delete(quarter);
+      else next.add(quarter);
+      return next;
+    });
+  };
+
+  if (!trainingPlan && !enhancedPlan) {
     if (enrichmentError) {
       return (
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -58,6 +71,155 @@ export default function TrainingPlanComponent({
         <p className="text-gray-500 text-center py-8">
           Select a role to generate a training plan
         </p>
+      </div>
+    );
+  }
+
+  // ── Enhanced Q1-Q4 view ──────────────────────────────────────────
+  if (enhancedPlan) {
+    const quarterMeta: Record<string, { color: string; border: string; bg: string; badge: string; label: string }> = {
+      Q1: { color: 'text-blue-700', border: 'border-blue-300', bg: 'bg-blue-50', badge: 'bg-blue-100 text-blue-800', label: 'Foundation (Months 1-3)' },
+      Q2: { color: 'text-green-700', border: 'border-green-300', bg: 'bg-green-50', badge: 'bg-green-100 text-green-800', label: 'Application (Months 4-6)' },
+      Q3: { color: 'text-amber-700', border: 'border-amber-300', bg: 'bg-amber-50', badge: 'bg-amber-100 text-amber-800', label: 'Deepening (Months 7-9)' },
+      Q4: { color: 'text-purple-700', border: 'border-purple-300', bg: 'bg-purple-50', badge: 'bg-purple-100 text-purple-800', label: 'Embedding (Months 10-12)' },
+    };
+
+    const priorityBadge = (p: string) => {
+      if (p === 'critical') return 'bg-red-100 text-red-800';
+      if (p === 'high') return 'bg-orange-100 text-orange-800';
+      if (p === 'medium') return 'bg-yellow-100 text-yellow-800';
+      return 'bg-green-100 text-green-800';
+    };
+
+    const assessmentIcon: Record<string, string> = {
+      quiz: '📝',
+      scenario: '🎭',
+      case_review: '📋',
+      manager_observation: '👁️',
+      qa_review: '✅',
+    };
+
+    const categoryBadge: Record<string, string> = {
+      knowledge: 'bg-blue-50 text-blue-700 border-blue-200',
+      skill: 'bg-green-50 text-green-700 border-green-200',
+      judgement: 'bg-purple-50 text-purple-700 border-purple-200',
+    };
+
+    const qs = enhancedPlan.qualityScore;
+
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Training Plan: {enhancedPlan.roleName}
+          </h2>
+          <span className="text-sm text-gray-500">
+            Generated: {new Date(enhancedPlan.generatedAt).toLocaleDateString()}
+          </span>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 p-4 bg-gray-50 rounded-lg">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-blue-600">{enhancedPlan.totalModules}</p>
+            <p className="text-xs text-gray-600">Modules</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-purple-600">
+              {Math.floor(enhancedPlan.totalDurationMinutes / 60)}h {enhancedPlan.totalDurationMinutes % 60}m
+            </p>
+            <p className="text-xs text-gray-600">Total Duration</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-emerald-600">{Math.round(qs.overallScore)}%</p>
+            <p className="text-xs text-gray-600">Quality Score</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-orange-600">{Math.round(qs.riskCoverage)}%</p>
+            <p className="text-xs text-gray-600">Risk Coverage</p>
+          </div>
+        </div>
+
+        {/* Quality Score Bar */}
+        <div className="mb-5 p-3 bg-gray-50 rounded-lg">
+          <p className="text-xs font-medium text-gray-600 mb-2">Competency Coverage</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-emerald-500 h-2 rounded-full transition-all"
+                style={{ width: `${Math.round(qs.competencyCoverage)}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-600 w-10 text-right">{Math.round(qs.competencyCoverage)}%</span>
+          </div>
+          <p className="text-xs font-medium text-gray-600 mt-2 mb-2">Regulatory Traceability</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all"
+                style={{ width: `${Math.round(qs.regulatoryTraceability)}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-600 w-10 text-right">{Math.round(qs.regulatoryTraceability)}%</span>
+          </div>
+        </div>
+
+        {/* Q1-Q4 Sections */}
+        <div className="space-y-3">
+          {enhancedPlan.quarters.map((section) => {
+            const meta = quarterMeta[section.quarter] ?? quarterMeta.Q1;
+            const isOpen = expandedQuarters.has(section.quarter);
+            return (
+              <div key={section.quarter} className={`border ${meta.border} rounded-lg overflow-hidden`}>
+                <button
+                  onClick={() => toggleQuarter(section.quarter)}
+                  className={`w-full flex items-center justify-between p-3 ${meta.bg} hover:opacity-90 transition-opacity`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`font-bold ${meta.color} text-base`}>{section.quarter}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.badge}`}>{meta.label}</span>
+                    <span className="text-sm font-medium text-gray-700">{section.title}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">{section.modules.length} modules</span>
+                    <span className={`text-xs ${meta.color}`}>{isOpen ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="p-3 space-y-3">
+                    {section.description && (
+                      <p className="text-sm text-gray-600 italic mb-2">{section.description}</p>
+                    )}
+                    {section.modules.map((mod) => (
+                      <EnhancedModuleCard key={mod.moduleId} module={mod} priorityBadge={priorityBadge} assessmentIcon={assessmentIcon} categoryBadge={categoryBadge} />
+                    ))}
+                    {section.modules.length === 0 && (
+                      <p className="text-sm text-gray-400 text-center py-4">No modules scheduled for this quarter</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {enhancedPlan.humanReviewRequired && (
+          <div className="mt-4 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <span className="text-amber-600">⚠️</span>
+            <p className="text-sm text-amber-800">Some modules require human review before finalising the plan.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Legacy view (fallback) ──────────────────────────────────────
+  if (!trainingPlan) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Training Plan</h2>
+        <p className="text-gray-500 text-center py-8">Select a role to generate a training plan</p>
       </div>
     );
   }
@@ -285,6 +447,190 @@ function TrainingPlanItemCard({
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EnhancedModuleCard({
+  module,
+  priorityBadge,
+  assessmentIcon,
+  categoryBadge,
+}: {
+  module: TrainingModuleItem;
+  priorityBadge: (p: string) => string;
+  assessmentIcon: Record<string, string>;
+  categoryBadge: Record<string, string>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          {/* Title row */}
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h4 className="font-medium text-gray-900 text-sm">{module.title}</h4>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${priorityBadge(module.priority)}`}>
+              {module.priority}
+            </span>
+            {module.humanReviewRequired && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                ⚠️ Review needed
+              </span>
+            )}
+          </div>
+
+          {/* Why included — always visible */}
+          {module.whyIncluded && (
+            <p className="text-xs text-gray-500 italic mb-2">💡 {module.whyIncluded}</p>
+          )}
+
+          {/* Meta row */}
+          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-2">
+            <span>⏱ {module.durationMinutes} min</span>
+            <span>📋 {module.primaryRequirement}</span>
+            <span>{assessmentIcon[module.assessmentMethod] ?? '📝'} {module.assessmentMethod?.replace(/_/g, ' ')}</span>
+          </div>
+
+          {/* Competency categories */}
+          {module.competencyCategoriesCovered.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {module.competencyCategoriesCovered.map((cat) => (
+                <span key={cat} className={`text-xs px-2 py-0.5 border rounded ${categoryBadge[cat] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                  {cat}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Expand/collapse for details */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+          >
+            {expanded ? 'Hide details ▲' : 'Show details ▼'}
+          </button>
+
+          {expanded && (
+            <div className="mt-3 space-y-3">
+              {/* Description */}
+              <p className="text-sm text-gray-600">{module.description}</p>
+
+              {/* Review reason */}
+              {module.humanReviewRequired && module.reviewReason && (
+                <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                  <span className="shrink-0">⚠️</span>
+                  <span>{module.reviewReason}</span>
+                </div>
+              )}
+
+              {/* Linked risks */}
+              {module.linkedRisks && module.linkedRisks.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1">Risk Categories:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {module.linkedRisks.map((risk) => (
+                      <span key={risk} className="text-xs px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded">
+                        {risk.replace(/-/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Competency breakdown K/S/J */}
+              {module.linkedCompetenciesByCategory && (
+                <div className="space-y-2">
+                  {module.linkedCompetenciesByCategory.knowledge.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-blue-700 mb-1">📘 Knowledge</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {module.linkedCompetenciesByCategory.knowledge.map((k, i) => (
+                          <li key={i} className="text-xs text-gray-600">{k}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {module.linkedCompetenciesByCategory.skills.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-green-700 mb-1">🛠 Skills</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {module.linkedCompetenciesByCategory.skills.map((s, i) => (
+                          <li key={i} className="text-xs text-gray-600">{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {module.linkedCompetenciesByCategory.judgement.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-purple-700 mb-1">⚖️ Judgement</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {module.linkedCompetenciesByCategory.judgement.map((j, i) => (
+                          <li key={i} className="text-xs text-gray-600">{j}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Learning objectives */}
+              {module.learningObjectives.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1">Learning Objectives:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {module.learningObjectives.slice(0, 5).map((obj, i) => (
+                      <li key={i} className="text-xs text-gray-600">{obj}</li>
+                    ))}
+                    {module.learningObjectives.length > 5 && (
+                      <li className="text-xs text-gray-400">+{module.learningObjectives.length - 5} more…</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {/* Regulatory basis */}
+              {module.regulatoryBasis.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1">Regulatory Basis:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {module.regulatoryBasis.map((basis, i) => (
+                      <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 border border-gray-200 rounded font-mono">
+                        {basis}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Linked task IDs */}
+              {module.linkedTaskIds.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1">Linked Tasks:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {module.linkedTaskIds.map((id) => (
+                      <span key={id} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded font-mono">{id}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Linked competency IDs */}
+              {module.linkedCompetencyIds.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-700 mb-1">Linked Competencies:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {module.linkedCompetencyIds.map((id) => (
+                      <span key={id} className="text-xs px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded font-mono">{id}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
