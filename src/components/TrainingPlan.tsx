@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { TrainingPlan, TrainingPlanItem } from "@/types";
 import type { EnrichmentResult } from "@/types/rag";
-import type { EnhancedTrainingPlan, TrainingModuleItem, QuarterlySection } from "@/types/training";
+import type { EnhancedTrainingPlan, TrainingModuleItem, QuarterlySection, LearningActivity, ActivityCompetencyCategory } from "@/types/training";
 
 interface TrainingPlanProps {
   trainingPlan: TrainingPlan | null;
@@ -191,10 +191,22 @@ export default function TrainingPlanComponent({
                     {section.description && (
                       <p className="text-sm text-gray-600 italic mb-2">{section.description}</p>
                     )}
-                    {section.modules.map((mod) => (
-                      <EnhancedModuleCard key={mod.moduleId} module={mod} priorityBadge={priorityBadge} assessmentIcon={assessmentIcon} categoryBadge={categoryBadge} />
-                    ))}
-                    {section.modules.length === 0 && (
+                    {/* Activity cards — primary content for each quarter */}
+                    {section.activities.length > 0 && (
+                      <ActivityGroupList activities={section.activities} />
+                    )}
+
+                    {/* Module cards for modules primarily assigned to this quarter */}
+                    {section.modules.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-2">Full Modules in this Quarter</p>
+                        {section.modules.map((mod) => (
+                          <EnhancedModuleCard key={mod.moduleId} module={mod} priorityBadge={priorityBadge} assessmentIcon={assessmentIcon} categoryBadge={categoryBadge} />
+                        ))}
+                      </div>
+                    )}
+
+                    {section.modules.length === 0 && section.activities.length === 0 && (
                       <p className="text-sm text-gray-400 text-center py-4">No modules scheduled for this quarter</p>
                     )}
                   </div>
@@ -449,6 +461,90 @@ function TrainingPlanItemCard({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Groups activities by their parent module title
+ */
+function groupByModule(activities: LearningActivity[]): Array<{ moduleTitle: string; moduleId: string; activities: LearningActivity[] }> {
+  const map = new Map<string, { moduleTitle: string; moduleId: string; activities: LearningActivity[] }>();
+  for (const act of activities) {
+    const existing = map.get(act.parentModuleId);
+    if (existing) {
+      existing.activities.push(act);
+    } else {
+      map.set(act.parentModuleId, { moduleTitle: act.parentModuleTitle, moduleId: act.parentModuleId, activities: [act] });
+    }
+  }
+  return Array.from(map.values());
+}
+
+const ACTIVITY_CATEGORY_STYLES: Record<ActivityCompetencyCategory, { border: string; badge: string; icon: string }> = {
+  knowledge: { border: 'border-blue-200',  badge: 'bg-blue-50 text-blue-700 border border-blue-200',   icon: '📘' },
+  skills:    { border: 'border-green-200', badge: 'bg-green-50 text-green-700 border border-green-200', icon: '🛠️' },
+  judgement: { border: 'border-purple-200',badge: 'bg-purple-50 text-purple-700 border border-purple-200', icon: '⚖️' },
+  assessment:{ border: 'border-orange-200',badge: 'bg-orange-50 text-orange-700 border border-orange-200', icon: '✅' },
+};
+
+function ActivityCard({ activity }: { activity: LearningActivity }) {
+  const [expanded, setExpanded] = useState(false);
+  const style = ACTIVITY_CATEGORY_STYLES[activity.competencyCategory] ?? ACTIVITY_CATEGORY_STYLES.knowledge;
+
+  return (
+    <div className={`border ${style.border} rounded p-3 bg-white`}>
+      <div className="flex flex-wrap items-center gap-2 mb-1">
+        <span>{style.icon}</span>
+        <span className="text-sm font-medium text-gray-800">{activity.title}</span>
+        <span className={`text-xs px-2 py-0.5 rounded ${style.badge}`}>
+          {activity.competencyCategory}
+        </span>
+        <span className="text-xs text-gray-400">⏱ {activity.durationMinutes} min</span>
+        {activity.humanReviewRequired && (
+          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">⚠️ Review</span>
+        )}
+      </div>
+
+      {activity.whyIncluded && (
+        <p className="text-xs text-gray-400 italic mb-1">💡 {activity.whyIncluded}</p>
+      )}
+
+      {activity.linkedCompetencies.length > 0 && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+          >
+            {expanded ? 'Hide competencies ▲' : `Show ${activity.linkedCompetencies.length} competencies ▼`}
+          </button>
+          {expanded && (
+            <ul className="list-disc list-inside mt-2 space-y-0.5">
+              {activity.linkedCompetencies.map((comp, i) => (
+                <li key={i} className="text-xs text-gray-600">{comp}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ActivityGroupList({ activities }: { activities: LearningActivity[] }) {
+  const groups = groupByModule(activities);
+  return (
+    <div className="space-y-3">
+      {groups.map(({ moduleTitle, moduleId, activities: acts }) => (
+        <div key={moduleId} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{moduleTitle}</p>
+          <div className="space-y-2">
+            {acts.map((act) => (
+              <ActivityCard key={act.id} activity={act} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

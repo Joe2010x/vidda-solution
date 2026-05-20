@@ -15,6 +15,8 @@ import type {
   TrainingModuleItem,
   QuarterlySection,
   TrainingQuarter,
+  LearningActivity,
+  ActivityCompetencyCategory,
 } from '@/types/training';
 import { clusterCompetencies } from '@/llm/retrieval/competencyClusterer';
 
@@ -181,14 +183,30 @@ export function generateReviewReason(cluster: CompetencyCluster): string {
 }
 
 /**
- * Determine the primary quarter for a cluster based on its competency mix
+ * Determine the primary quarter for a cluster based on its competency mix.
+ * Q4 is returned when the cluster has Q4-type competencies (coaching/QA/assessment)
+ * that outnumber the other categories.
  */
 export function determinePrimaryQuarter(cluster: CompetencyCluster): TrainingQuarter {
   const knowledgeCount = cluster.competencies.knowledge.length;
   const skillsCount = cluster.competencies.skills.length;
   const judgementCount = cluster.competencies.judgement.length;
-  
-  // Determine dominant category
+
+  // Count Q4-type competencies (coaching, QA, assessment, review keywords)
+  const allCompetencies = [
+    ...cluster.competencies.knowledge,
+    ...cluster.competencies.skills,
+    ...cluster.competencies.judgement,
+  ];
+  const q4Count = allCompetencies.filter(c => isQ4Competency(c)).length;
+  const nonQ4Total = allCompetencies.length - q4Count;
+
+  // If more than half are Q4-type, assign the module to Q4
+  if (q4Count > nonQ4Total) {
+    return 'Q4';
+  }
+
+  // Determine dominant category among non-Q4 competencies
   if (judgementCount > knowledgeCount && judgementCount > skillsCount) {
     return 'Q3';
   }
@@ -196,6 +214,203 @@ export function determinePrimaryQuarter(cluster: CompetencyCluster): TrainingQua
     return 'Q2';
   }
   return 'Q1';
+}
+
+/**
+ * Generate activity title based on category and cluster
+ */
+function generateActivityTitle(
+  cluster: CompetencyCluster,
+  category: ActivityCompetencyCategory
+): string {
+  const titleTemplates: Record<ActivityCompetencyCategory, string> = {
+    knowledge: `${cluster.title}: Knowledge Foundation`,
+    skills: `${cluster.title}: Practical Skills Workshop`,
+    judgement: `${cluster.title}: Decision-Making Scenario Lab`,
+    assessment: `${cluster.title}: Competency Assessment`,
+  };
+  return titleTemplates[category] || cluster.title;
+}
+
+/**
+ * Generate activity description based on category
+ */
+function generateActivityDescription(
+  cluster: CompetencyCluster,
+  category: ActivityCompetencyCategory
+): string {
+  const descTemplates: Record<ActivityCompetencyCategory, string> = {
+    knowledge: `Learn the fundamental knowledge areas for ${cluster.title}`,
+    skills: `Practice applying practical skills for ${cluster.title} through hands-on exercises`,
+    judgement: `Develop professional judgement through scenario-based learning for ${cluster.title}`,
+    assessment: `Assessment and validation of competencies for ${cluster.title}`,
+  };
+  return descTemplates[category] || `Learning activity for ${cluster.title}`;
+}
+
+/**
+ * Check if a competency text indicates Q4 (Embedding/Assessment) activities
+ * Q4 activities include: coaching, QA review, audit, assessment, feedback, sign-off
+ */
+function isQ4Competency(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return (
+    lowerText.includes('coach') ||
+    lowerText.includes('review') ||
+    lowerText.includes('feedback') ||
+    lowerText.includes('assessment') ||
+    lowerText.includes('audit') ||
+    lowerText.includes('qa') ||
+    lowerText.includes('sign-off') ||
+    lowerText.includes('signoff') ||
+    lowerText.includes('junior') ||
+    lowerText.includes('mentoring') ||
+    lowerText.includes('mentor') ||
+    lowerText.includes('quality assurance') ||
+    lowerText.includes('observe') ||
+    lowerText.includes('observation') ||
+    lowerText.includes('refresher') ||
+    lowerText.includes('embed') ||
+    lowerText.includes('embedding')
+  );
+}
+
+/**
+ * Split a competency cluster into learning activities across quarters
+ * This ensures each module has activities distributed across Q1-Q4 based on competency types
+ * 
+ * Quarter assignment rules:
+ * - Q4 keywords (coach, review, feedback, assessment, audit, qa, etc.) → Q4 Embedding
+ * - judgement competencies → Q3 Deepening
+ * - skills competencies → Q2 Application
+ * - knowledge competencies → Q1 Foundation
+ */
+export function splitClusterToActivities(
+  cluster: CompetencyCluster,
+  roleName: string,
+  moduleIndex: number
+): LearningActivity[] {
+  const activities: LearningActivity[] = [];
+  const moduleId = `module-${cluster.groupId}-${moduleIndex}`;
+  const linkedRisks = REQUIREMENT_TO_RISKS[cluster.primaryRequirement] ?? [cluster.riskLevel + '-risk'];
+  
+  // Separate Q4 competencies from each category
+  const q4Knowledge = cluster.competencies.knowledge.filter(c => isQ4Competency(c));
+  const q4Skills = cluster.competencies.skills.filter(c => isQ4Competency(c));
+  const q4Judgement = cluster.competencies.judgement.filter(c => isQ4Competency(c));
+  
+  // Non-Q4 competencies for Q1-Q3
+  const nonQ4Knowledge = cluster.competencies.knowledge.filter(c => !isQ4Competency(c));
+  const nonQ4Skills = cluster.competencies.skills.filter(c => !isQ4Competency(c));
+  const nonQ4Judgement = cluster.competencies.judgement.filter(c => !isQ4Competency(c));
+  
+  // Q1: Knowledge activities (non-Q4)
+  if (nonQ4Knowledge.length > 0) {
+    activities.push({
+      id: `${moduleId}-q1-knowledge`,
+      title: generateActivityTitle(cluster, 'knowledge'),
+      description: generateActivityDescription(cluster, 'knowledge'),
+      parentModuleId: moduleId,
+      parentModuleTitle: cluster.title,
+      assignedQuarter: 'Q1',
+      competencyCategory: 'knowledge',
+      durationMinutes: Math.max(20, nonQ4Knowledge.length * 10),
+      linkedCompetencies: nonQ4Knowledge,
+      linkedTaskIds: cluster.linkedTaskIds,
+      riskCategories: linkedRisks,
+      primaryRequirement: cluster.primaryRequirement,
+      whyIncluded: `Knowledge foundation: ${generateWhyIncluded(cluster, roleName)}`,
+      humanReviewRequired: false,
+    });
+  }
+  
+  // Q2: Skills activities (non-Q4)
+  if (nonQ4Skills.length > 0) {
+    activities.push({
+      id: `${moduleId}-q2-skills`,
+      title: generateActivityTitle(cluster, 'skills'),
+      description: generateActivityDescription(cluster, 'skills'),
+      parentModuleId: moduleId,
+      parentModuleTitle: cluster.title,
+      assignedQuarter: 'Q2',
+      competencyCategory: 'skills',
+      durationMinutes: Math.max(25, nonQ4Skills.length * 12),
+      linkedCompetencies: nonQ4Skills,
+      linkedTaskIds: cluster.linkedTaskIds,
+      riskCategories: linkedRisks,
+      primaryRequirement: cluster.primaryRequirement,
+      whyIncluded: `Skills development: ${generateWhyIncluded(cluster, roleName)}`,
+      humanReviewRequired: false,
+    });
+  }
+  
+  // Q3: Judgement activities (non-Q4)
+  if (nonQ4Judgement.length > 0) {
+    activities.push({
+      id: `${moduleId}-q3-judgement`,
+      title: generateActivityTitle(cluster, 'judgement'),
+      description: generateActivityDescription(cluster, 'judgement'),
+      parentModuleId: moduleId,
+      parentModuleTitle: cluster.title,
+      assignedQuarter: 'Q3',
+      competencyCategory: 'judgement',
+      durationMinutes: Math.max(30, nonQ4Judgement.length * 15),
+      linkedCompetencies: nonQ4Judgement,
+      linkedTaskIds: cluster.linkedTaskIds,
+      riskCategories: linkedRisks,
+      primaryRequirement: cluster.primaryRequirement,
+      whyIncluded: `Judgement development: ${generateWhyIncluded(cluster, roleName)}`,
+      humanReviewRequired: cluster.humanReviewRequired,
+    });
+  }
+  
+  // Q4: Assessment/Embedding activities (all Q4 competencies)
+  const allQ4Competencies = [...q4Knowledge, ...q4Skills, ...q4Judgement];
+  
+  if (allQ4Competencies.length > 0) {
+    activities.push({
+      id: `${moduleId}-q4-assessment`,
+      title: generateActivityTitle(cluster, 'assessment'),
+      description: generateActivityDescription(cluster, 'assessment'),
+      parentModuleId: moduleId,
+      parentModuleTitle: cluster.title,
+      assignedQuarter: 'Q4',
+      competencyCategory: 'assessment',
+      durationMinutes: Math.max(30, allQ4Competencies.length * 15),
+      linkedCompetencies: allQ4Competencies,
+      linkedTaskIds: cluster.linkedTaskIds,
+      riskCategories: linkedRisks,
+      primaryRequirement: cluster.primaryRequirement,
+      whyIncluded: `Competency assessment and embedding: ${generateWhyIncluded(cluster, roleName)}`,
+      humanReviewRequired: true,
+    });
+  } else if (cluster.priority === 'critical' || cluster.priority === 'high') {
+    // If no Q4 competencies found but module is high/critical priority, still create a Q4 assessment
+    const assessmentCompetencies = [
+      ...cluster.competencies.knowledge.slice(0, 1),
+      ...cluster.competencies.skills.slice(0, 1),
+      ...cluster.competencies.judgement.slice(0, 1),
+    ].filter(Boolean);
+    
+    activities.push({
+      id: `${moduleId}-q4-assessment`,
+      title: generateActivityTitle(cluster, 'assessment'),
+      description: generateActivityDescription(cluster, 'assessment'),
+      parentModuleId: moduleId,
+      parentModuleTitle: cluster.title,
+      assignedQuarter: 'Q4',
+      competencyCategory: 'assessment',
+      durationMinutes: 30,
+      linkedCompetencies: assessmentCompetencies,
+      linkedTaskIds: cluster.linkedTaskIds,
+      riskCategories: linkedRisks,
+      primaryRequirement: cluster.primaryRequirement,
+      whyIncluded: `Competency assessment: ${generateWhyIncluded(cluster, roleName)}`,
+      humanReviewRequired: true,
+    });
+  }
+  
+  return activities;
 }
 
 /**
@@ -290,6 +505,9 @@ export function clusterToModule(
     ? generateReviewReason(cluster)
     : undefined;
   
+  // Generate activities for this module
+  const activities = splitClusterToActivities(cluster, roleName, index);
+  
   return {
     moduleId: `module-${cluster.groupId}-${index}`,
     title: cluster.title,
@@ -305,7 +523,7 @@ export function clusterToModule(
     // Competency coverage
     competencyCategoriesCovered: [
       ...(cluster.competencies.knowledge.length > 0 ? ['knowledge' as const] : []),
-      ...(cluster.competencies.skills.length > 0 ? ['skill' as const] : []),
+      ...(cluster.competencies.skills.length > 0 ? ['skills' as const] : []),
       ...(cluster.competencies.judgement.length > 0 ? ['judgement' as const] : []),
     ],
     linkedCompetenciesByCategory,
@@ -326,6 +544,9 @@ export function clusterToModule(
     // Review
     humanReviewRequired: cluster.humanReviewRequired,
     reviewReason,
+    
+    // Activities breakdown
+    activities,
   };
 }
 
@@ -345,7 +566,8 @@ export function generateEnhancedTrainingPlan(
     clusterToModule(cluster, role.name, index + 1)
   );
   
-  // Organize modules by quarter
+  // Organize modules by quarter based on their activities
+  // A module can appear in multiple quarters if it has activities in those quarters
   const quartersMap: Record<TrainingQuarter, TrainingModuleItem[]> = {
     Q1: [],
     Q2: [],
@@ -354,21 +576,35 @@ export function generateEnhancedTrainingPlan(
   };
   
   modules.forEach(module => {
-    quartersMap[module.quarter].push(module);
+    // Find all quarters this module has activities in
+    const moduleQuarters = new Set<TrainingQuarter>([module.quarter]);
+    module.activities.forEach(activity => {
+      moduleQuarters.add(activity.assignedQuarter);
+    });
+    
+    // Add module to all quarters it's involved in
+    moduleQuarters.forEach(quarter => {
+      quartersMap[quarter].push(module);
+    });
   });
   
-  // Build quarterly sections
+  // Collect all activities from all modules
+  const allActivities = modules.flatMap(m => m.activities);
+  
+  // Build quarterly sections with activities
   const quarters: QuarterlySection[] = (['Q1', 'Q2', 'Q3', 'Q4'] as TrainingQuarter[])
     .map(quarter => {
       const info = getQuarterInfo(quarter);
+      const quarterActivities = allActivities.filter(a => a.assignedQuarter === quarter);
       return {
         quarter,
         title: info.title,
         description: info.description,
         modules: quartersMap[quarter].sort((a, b) => b.priorityScore - a.priorityScore),
+        activities: quarterActivities,
       };
     })
-    .filter(section => section.modules.length > 0);
+    .filter(section => section.modules.length > 0 || section.activities.length > 0);
   
   // Calculate statistics
   const totalModules = modules.length;

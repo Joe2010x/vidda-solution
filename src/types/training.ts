@@ -4,7 +4,10 @@
  */
 
 // Competency types as per AMLR Article 13
-export type CompetencyType = 'knowledge' | 'skill' | 'judgement';
+export type CompetencyType = 'knowledge' | 'skills' | 'judgement';
+
+// Activity competency categories for learning progression
+export type ActivityCompetencyCategory = 'knowledge' | 'skills' | 'judgement' | 'assessment';
 
 // Training module types based on learning progression
 export type ModuleType = 'foundation' | 'application' | 'deepening' | 'embedding';
@@ -86,6 +89,43 @@ export interface EnhancedTrainingModule {
 }
 
 /**
+ * Learning Activity - a granular training component within a module
+ * Each activity is assigned to a specific quarter based on its competency category
+ */
+export interface LearningActivity {
+  id: string;
+  title: string;
+  description: string;
+  
+  // Parent module reference
+  parentModuleId: string;
+  parentModuleTitle: string;
+  
+  // Quarter assignment
+  assignedQuarter: TrainingQuarter;
+  
+  // Competency category this activity focuses on
+  competencyCategory: ActivityCompetencyCategory;
+  
+  // Duration in minutes
+  durationMinutes: number;
+  
+  // Linked competencies (the actual competency text)
+  linkedCompetencies: string[];
+  
+  // Traceability
+  linkedTaskIds: string[];
+  riskCategories: string[];
+  primaryRequirement: string;
+  
+  // Explainability
+  whyIncluded: string;
+  
+  // Review
+  humanReviewRequired: boolean;
+}
+
+/**
  * Training module for rule-based generation (simplified)
  */
 export interface TrainingModuleItem {
@@ -126,6 +166,9 @@ export interface TrainingModuleItem {
   // Review
   humanReviewRequired: boolean;
   reviewReason?: string;
+  
+  // Activities breakdown - granular learning components across quarters
+  activities: LearningActivity[];
 }
 
 /**
@@ -136,6 +179,8 @@ export interface QuarterlySection {
   title: string;
   description: string;
   modules: TrainingModuleItem[];
+  // All activities assigned to this quarter (from all modules)
+  activities: LearningActivity[];
 }
 
 /**

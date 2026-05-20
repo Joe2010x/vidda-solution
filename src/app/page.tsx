@@ -221,13 +221,13 @@ export default function Home() {
               id: m.moduleId,
               title: m.title,
               type: m.competencyCategoriesCovered.includes('judgement') ? 'interactive' : 
-                     m.competencyCategoriesCovered.includes('skill') ? 'interactive' : 'video',
+                     m.competencyCategoriesCovered.includes('skills') ? 'interactive' : 'video',
               description: m.description,
               duration: m.durationMinutes,
               priority: m.priority,
               competencyAreas: m.competencyCategoriesCovered.map(c => 
                 c === 'knowledge' ? 'Regulatory Knowledge' : 
-                c === 'skill' ? 'Practical Skills' : 'Professional Judgement'
+                c === 'skills' ? 'Practical Skills' : 'Professional Judgement'
               ),
             },
             requirement: {
@@ -239,7 +239,7 @@ export default function Home() {
               riskCategories: [],
               competencyRequirements: m.competencyCategoriesCovered.map(c => 
                 c === 'knowledge' ? 'Regulatory Knowledge' : 
-                c === 'skill' ? 'Practical Skills' : 'Professional Judgement'
+                c === 'skills' ? 'Practical Skills' : 'Professional Judgement'
               ),
             },
             priority: m.priorityScore,

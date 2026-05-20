@@ -1,12 +1,6 @@
 {
   "templates": [
     {
-      "id": "aml-ddi-manager",
-      "name": "AML DDI Manager",
-      "category": "Management",
-      "description": "Senior Financial Analyst - Transaction Monitoring\n\nWe are seeking an experienced Senior Financial Analyst to join our Transaction Monitoring team. The successful candidate will be responsible for analyzing complex financial transactions, identifying suspicious activity patterns, and ensuring compliance with Anti-Money Laundering (AML) and Counter-Terrorist Financing (CTF) regulations.\n\nKey Responsibilities:\n- Monitor and analyze high-value financial transactions for potential money laundering or terrorist financing indicators\n- Conduct enhanced due diligence on high-risk customers and transactions\n- Prepare Suspicious Activity Reports (SARs) and file them with relevant authorities\n- Collaborate with compliance officers to develop and implement AML policies and procedures\n- Review customer onboarding documentation and verify source of funds\n- Conduct periodic risk assessments of existing customer relationships\n- Provide training and guidance to junior analysts on AML detection techniques\n- Liaise with law enforcement agencies and regulatory bodies during investigations\n- Maintain detailed records of all monitoring activities and decisions\n- Stay current with evolving AML regulations and industry best practices\n\nRequirements:\n- Bachelor's degree in Finance, Accounting, or related field\n- 5+ years of experience in financial analysis or AML compliance\n- Strong knowledge of AML/CFT regulations and typologies\n- Experience with transaction monitoring systems and tools\n- Excellent analytical and problem-solving skills\n- Professional certification (CAMS, CFE) preferred"
-    },
-    {
       "id": "customer-advisor",
       "name": "Customer Advisor",
       "category": "Operations",
