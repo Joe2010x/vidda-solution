@@ -213,6 +213,9 @@ export interface EnhancedTrainingPlan {
   
   // Review status
   humanReviewRequired: boolean;
+  
+  // Audit trail for compliance and traceability
+  auditTrail?: import('./audit').AuditTrail;
 }
 
 /**
