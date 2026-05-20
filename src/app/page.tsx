@@ -34,6 +34,7 @@ import TrainingPlanComponent from "@/components/TrainingPlan";
 import ValidationScoreComponent from "@/components/ValidationScore";
 import HumanReviewComponent from "@/components/HumanReview";
 import LMSAssignmentComponent from "@/components/LMSAssignment";
+import AuditTrailViewer from "@/components/AuditTrailViewer";
 
 export default function Home() {
   // Pipeline state
@@ -1005,6 +1006,25 @@ export default function Home() {
                 enrichmentError={enrichmentError}
               />
             </div>
+
+            {/* Audit Trail */}
+            {enhancedTrainingPlan?.auditTrail && (
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">Audit Trail</h2>
+                  <button
+                    onClick={() => handleShowComponentJson('Audit Trail', enhancedTrainingPlan.auditTrail)}
+                    className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                    Show JSON
+                  </button>
+                </div>
+                <AuditTrailViewer auditTrail={enhancedTrainingPlan.auditTrail} />
+              </div>
+            )}
 
             {/* Validation Score */}
             <div className="bg-white rounded-lg shadow-md p-4">
