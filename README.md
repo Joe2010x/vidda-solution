@@ -54,7 +54,7 @@ Vidda Solutions helps organizations generate customized compliance training plan
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Joe2010x/vidda-solution.git
 cd NerveHackathon
 ```
 
